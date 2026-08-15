@@ -1,0 +1,94 @@
+{
+  "type": "FeatureCollection",
+  "source": "Simplified regional coastline geometry for local display",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "East Africa" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[25, 35], [36, 35], [42, 22], [49, 15], [51, 11], [48, 5], [43, 1], [41, -5], [40, -11], [36, -20], [34, -27], [31, -34], [28, -35], [25, -35], [25, 35]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Arabian Peninsula" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[34, 34], [47, 33], [57, 27], [59, 22], [55, 17], [51, 13], [44, 13], [40, 18], [37, 25], [34, 29], [34, 34]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Iran and Pakistan" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[44, 35], [76, 35], [79, 30], [77, 24], [70, 23], [64, 25], [58, 25], [54, 29], [44, 35]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "India" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[68, 24], [70, 29], [75, 35], [79, 31], [80, 27], [87, 25], [89, 22], [86, 20], [83, 16], [81, 12], [78, 8], [76, 10], [74, 15], [72, 19], [69, 21], [68, 24]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Sri Lanka" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[79.4, 9.8], [81.2, 9.2], [82, 7.3], [81.4, 5.8], [80.3, 6], [79.5, 7.4], [79.4, 9.8]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Mainland Southeast Asia" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[91, 29], [104, 29], [111, 23], [109, 16], [105, 11], [103, 7], [100, 9], [98, 15], [94, 20], [91, 23], [91, 29]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Malay Peninsula" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[98, 14], [102, 12], [104, 6], [104, 1], [102, 1], [100, 5], [98, 10], [98, 14]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Sumatra" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[95, 5], [99, 4], [103, 0], [106, -5], [104, -6], [100, -3], [97, 0], [95, 5]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Java" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[105, -5], [113, -6], [116, -8], [112, -9], [106, -8], [105, -5]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Borneo" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[108, 7], [116, 8], [120, 4], [118, -3], [113, -4], [109, 0], [108, 7]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Madagascar" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[43.5, -12], [48, -13], [50.5, -17], [49, -24], [45, -26], [43, -21], [43.5, -12]]]
+      }
+    }
+  ]
+}
