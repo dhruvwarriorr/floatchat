@@ -20,7 +20,7 @@ test("keeps the ocean workspace local, typed, neutral, and honest about illustra
     readFile(new URL("src/components/Charts.tsx", root), "utf8"),
     readFile(new URL("src/components/ExplanationPanel.tsx", root), "utf8"),
     readFile(new URL("src/components/Header.tsx", root), "utf8"),
-    readFile(new URL("src/data/indianOceanLand.geojson", root), "utf8"),
+    readFile(new URL("src/components/OceanMap.tsx", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
   ]);
 
@@ -39,7 +39,9 @@ test("keeps the ocean workspace local, typed, neutral, and honest about illustra
   assert.match(data, /confidenceForProfileCount\(24\)/);
   assert.match(charts, /Mean 33\.2 PSU/);
   assert.match(charts, /Salinity \(PSU\)/);
-  assert.match(map, /Simplified regional coastline geometry/);
+  assert.match(map, /src="\/indian-ocean-map\.png"/);
+  assert.match(map, /Political map of the Indian Ocean region/);
+  await access(new URL("public/indian-ocean-map.png", root));
   assert.doesNotMatch(packageJson, /drizzle|vinext|wrangler|cloudflare|react-loading-skeleton|langchain/i);
 
   await assert.rejects(access(new URL(".openai", root)));
@@ -62,6 +64,16 @@ test("preserves query submission, empty-input protection, reset, and staged reso
   assert.match(app, /}, 1180\)\)/);
   assert.match(app, /setView\("idle"\)/);
   assert.match(app, /setQuery\(""\)/);
+});
+
+test("does not expose hardcoded suggested questions in the frontend", async () => {
+  const [composer, errorState] = await Promise.all([
+    readFile(new URL("src/components/QueryComposer.tsx", root), "utf8"),
+    readFile(new URL("src/components/ErrorState.tsx", root), "utf8"),
+  ]);
+
+  assert.doesNotMatch(composer, /suggestedQueries|Suggested questions|query-chip/);
+  assert.doesNotMatch(errorState, /suggestedQueries|error-suggestions|Show temperature profile near Mumbai/);
 });
 
 test("uses the supplied ocean video as an accessible decorative background", async () => {

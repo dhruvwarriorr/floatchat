@@ -54,13 +54,6 @@ export function FloatChatApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const selectFromError = (selected: string) => {
-    setQuery(selected);
-    setView("idle");
-    setResponse(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const hasOutput = view !== "idle";
 
   return (
@@ -111,7 +104,7 @@ export function FloatChatApp() {
       <div className="output-anchor" ref={outputRef}>
         {view === "loading" && <LoadingSequence activeStep={activeStep} />}
         {view === "success" && response && <ResultView response={response} />}
-        {view === "error" && <ErrorState onSelect={selectFromError} />}
+        {view === "error" && <ErrorState />}
       </div>
 
       <footer>

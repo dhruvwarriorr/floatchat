@@ -1,6 +1,5 @@
 import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { suggestedQueries } from "../data/oceanResponses";
 
 interface QueryComposerProps {
   query: string;
@@ -40,32 +39,15 @@ export function QueryComposer({ query, onQueryChange, onSubmit, onReset, isLoadi
             {isLoading ? "Exploring" : "Explore"}<ArrowRight size={17} aria-hidden="true" />
           </button>
         </div>
-        <p className="composer-hint" id="query-hint">Choose a prompt below or ask using a location, parameter and time range.</p>
-      </form>
-
-      <div className="suggestions" aria-label="Suggested questions">
-        <div className="suggestion-heading">
-          <span>Suggested questions</span>
+        <div className="composer-meta">
+          <p className="composer-hint" id="query-hint">Include a location, parameter and time range in your question.</p>
           {hasResult && (
             <button type="button" className="reset-button" onClick={onReset}>
               <RotateCcw size={13} aria-hidden="true" /> Ask another question
             </button>
           )}
         </div>
-        <div className="chip-list">
-          {suggestedQueries.map((suggestion) => (
-            <button
-              type="button"
-              className={query === suggestion ? "query-chip selected" : "query-chip"}
-              key={suggestion}
-              onClick={() => onQueryChange(suggestion)}
-              disabled={isLoading}
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      </div>
+      </form>
     </div>
   );
 }
