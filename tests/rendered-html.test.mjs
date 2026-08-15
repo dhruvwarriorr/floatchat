@@ -32,7 +32,7 @@ test("keeps the ocean workspace local, typed, neutral, and honest about illustra
   assert.match(data, /Arabian Sea/);
   assert.match(header, /Temperature • Salinity • Trends/);
   assert.doesNotMatch(header, /prototype|production-ready|final product|ARGO[- ]ready/i);
-  assert.match(explanation, /Displayed values are illustrative\. The intended operational source is quality-controlled INCOIS ARGO data\./);
+  assert.doesNotMatch(explanation, /Displayed values are illustrative\. The intended operational source is quality-controlled INCOIS ARGO data\./);
   assert.match(explanation, /1–5 Low, 6–20 Medium, and 21 or more High/);
   assert.match(data, /Salinity describes the amount of dissolved salt in seawater/);
   assert.match(data, /Lower salinity indicates relatively fresher seawater/);
@@ -45,6 +45,8 @@ test("keeps the ocean workspace local, typed, neutral, and honest about illustra
   assert.match(map, /loading="lazy"/);
   await access(new URL("public/bhuvan-3d-map.png", root));
   assert.match(styles, /\.map-visual img\s*\{[\s\S]*?transform: scale\(1\.48\)/);
+  assert.match(styles, /\.map-visual::after\s*\{[\s\S]*?mix-blend-mode: color/);
+  assert.match(styles, /filter: saturate\(0\.84\) contrast\(1\.05\) brightness\(0\.96\)/);
   assert.doesNotMatch(packageJson, /drizzle|vinext|wrangler|cloudflare|react-loading-skeleton|langchain/i);
 
   await assert.rejects(access(new URL(".openai", root)));
@@ -121,9 +123,9 @@ test("uses the constrained palette and flat result surfaces", async () => {
   ]);
 
   for (const token of [
-    "--bg-deep: #05203b",
+    "--bg-deep: #07384c",
     "--bg-panel: #",
-    "--bg-panel-raised: #123a63",
+    "--bg-panel-raised: #0d586b",
     "--teal: #2dd4c8",
     "--sand: #ebd096",
     "--pale-sand: #f7e6bd",
@@ -140,6 +142,7 @@ test("uses the constrained palette and flat result surfaces", async () => {
   assert.match(styles, /\.sufficiency-card\.tier-low[\s\S]*?border-style: dashed/);
   assert.match(styles, /\.status-card\.tier-medium,[\s\S]*?border-color: var\(--amber\)/);
   assert.match(styles, /\.status-card\.tier-high,[\s\S]*?border-color: var\(--teal\)/);
+  assert.match(styles, /\.explore-button\s*\{[\s\S]*?background: linear-gradient\(135deg, #31ded1, #71e6dc\)/);
   assert.doesNotMatch(styles, /\.has-output \.background-video/);
   assert.doesNotMatch(app, /video\.pause\(\)/);
 });

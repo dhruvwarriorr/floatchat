@@ -1,8 +1,8 @@
 :root {
   /* structure */
-  --bg-deep: #05203b;
-  --bg-panel: #0d3157;
-  --bg-panel-raised: #123a63;
+  --bg-deep: #07384c;
+  --bg-panel: #043344;
+  --bg-panel-raised: #0d586b;
 
   /* interactive accent */
   --teal: #2dd4c8;
@@ -23,7 +23,7 @@
 
   --border: rgba(159, 184, 202, 0.16);
   --border-strong: rgba(45, 212, 200, 0.4);
-  --panel-shadow: 0 24px 70px rgba(3, 35, 70, 0.28);
+  --panel-shadow: 0 24px 70px rgba(2, 43, 58, 0.28);
 }
 
 * {
@@ -354,17 +354,17 @@ h1 {
   color: var(--bg-deep);
   font-weight: 800;
   cursor: pointer;
-  border: 1px solid rgba(244, 232, 204, 0.22);
+  border: 1px solid rgba(247, 230, 189, 0.52);
   border-radius: 12px;
-  background: var(--teal);
-  box-shadow: 0 12px 30px rgba(5, 33, 45, 0.24);
+  background: linear-gradient(135deg, #31ded1, #71e6dc);
+  box-shadow: 0 0 0 1px rgba(45, 212, 200, 0.16), 0 14px 34px rgba(45, 212, 200, 0.28);
   transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
 }
 
 .explore-button:not(:disabled):hover {
   transform: translateY(-1px);
-  filter: saturate(0.92) brightness(1.06);
-  box-shadow: 0 15px 34px rgba(5, 33, 45, 0.32);
+  filter: saturate(1.06) brightness(1.08);
+  box-shadow: 0 0 0 1px rgba(247, 230, 189, 0.28), 0 17px 40px rgba(45, 212, 200, 0.36);
 }
 
 .composer-meta {
@@ -822,6 +822,23 @@ h1 {
   background: var(--bg-deep);
 }
 
+.map-visual::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    145deg,
+    rgba(5, 32, 59, 0.26),
+    rgba(13, 49, 87, 0.12) 44%,
+    rgba(45, 212, 200, 0.11) 76%,
+    rgba(235, 208, 150, 0.07)
+  );
+  box-shadow: inset 0 0 38px rgba(5, 32, 59, 0.22);
+  mix-blend-mode: color;
+}
+
 .context-column .map-card:only-child .map-visual {
   height: 335px;
 }
@@ -832,6 +849,7 @@ h1 {
   height: 100%;
   object-fit: cover;
   object-position: center 45%;
+  filter: saturate(0.84) contrast(1.05) brightness(0.96) hue-rotate(4deg);
   transform: scale(1.48);
   transform-origin: 50% 44%;
 }
@@ -1276,8 +1294,7 @@ h1 {
 }
 
 .method-caveat,
-.confidence-method,
-.disclosure {
+.confidence-method {
   margin: 8px 0 0;
   padding: 9px 11px;
   display: flex;
@@ -1296,12 +1313,6 @@ h1 {
 .confidence-method {
   border: 1px solid var(--border);
   background: var(--bg-deep);
-}
-
-.disclosure {
-  color: var(--text-secondary);
-  border: 1px solid var(--border-strong);
-  background: var(--teal-dim);
 }
 
 .method-caveat strong,

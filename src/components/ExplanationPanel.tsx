@@ -26,7 +26,6 @@ export function ExplanationPanel({ response }: { response: OceanResponse }) {
       </div>
       {response.preparation.caveat && <p className="method-caveat"><strong>Measurement note</strong>{response.preparation.caveat}</p>}
       <p className="confidence-method"><strong>Confidence method</strong>Confidence is based on profile count: 1–5 Low, 6–20 Medium, and 21 or more High. This answer uses {response.profileCount} profiles.</p>
-      <p className="disclosure">Displayed values are illustrative. The intended operational source is quality-controlled INCOIS ARGO data.</p>
     </section>
   );
 }
