@@ -12,14 +12,14 @@ import {
 import type { OceanResponse } from "../types/ocean";
 
 const axis = {
-  stroke: "rgba(155, 199, 229, 0.48)",
+  stroke: "rgba(180, 220, 235, 0.52)",
   tick: { fill: "#C9E0EE", fontSize: 12.5 },
-  tickLine: { stroke: "rgba(155, 199, 229, 0.34)" },
-  axisLine: { stroke: "rgba(155, 199, 229, 0.26)" },
+  tickLine: { stroke: "rgba(180, 220, 235, 0.38)" },
+  axisLine: { stroke: "rgba(180, 220, 235, 0.3)" },
 };
 
 const grid = {
-  stroke: "rgba(155, 199, 229, 0.17)",
+  stroke: "rgba(180, 220, 235, 0.2)",
   strokeDasharray: "3 6",
   vertical: false,
 };
@@ -27,8 +27,8 @@ const grid = {
 const labelStyle = { fill: "#BFD9E9", fontSize: 12, fontWeight: 600 };
 
 const tooltip = {
-  background: "#052F5F",
-  border: "1px solid rgba(101, 217, 210, 0.56)",
+  background: "#053043",
+  border: "1px solid rgba(123, 226, 215, 0.62)",
   borderRadius: "10px",
   color: "#F7FBFC",
   boxShadow: "0 18px 44px rgba(3, 45, 88, 0.32)",
@@ -53,8 +53,8 @@ export function DepthProfileChart({ response }: { response: OceanResponse }) {
             <CartesianGrid {...grid} vertical />
             <XAxis type="number" dataKey="temperature" domain={[8, 30]} ticks={[10, 15, 20, 25, 30]} {...axis} label={{ value: "Temperature (°C)", position: "insideBottom", offset: -17, ...labelStyle }} />
             <YAxis type="number" dataKey="depth" domain={[0, 500]} reversed ticks={[0, 100, 200, 300, 400, 500]} {...axis} label={{ value: "Depth (m)", angle: -90, position: "insideLeft", ...labelStyle }} />
-            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#9BC7E5" }} itemStyle={{ color: "#F7FBFC" }} labelFormatter={(depth) => `${depth} m depth`} formatter={(value) => [`${value} °C`, "Temperature"]} />
-            <Line isAnimationActive={false} dataKey="temperature" type="monotone" stroke="#27D0C9" strokeWidth={3.5} dot={{ fill: "#65D9D2", stroke: "#075A9C", strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: "#F4E8CC", stroke: "#052F5F", strokeWidth: 2 }} />
+            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#B4DCEB" }} itemStyle={{ color: "#F7FBFC" }} labelFormatter={(depth) => `${depth} m depth`} formatter={(value) => [`${value} °C`, "Temperature"]} />
+            <Line isAnimationActive={false} dataKey="temperature" type="monotone" stroke="#2FD1C5" strokeWidth={3.5} dot={{ fill: "#7BE2D7", stroke: "#146983", strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: "#F7E6BD", stroke: "#053043", strokeWidth: 2 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -81,17 +81,17 @@ export function TimeSeriesChart({ response }: { response: OceanResponse }) {
             <CartesianGrid {...grid} />
             <XAxis dataKey="label" {...axis} interval={0} label={{ value: "Year", position: "insideBottom", offset: -17, ...labelStyle }} />
             <YAxis domain={isWarming ? [27.8, 29.4] : [27.8, 29.6]} ticks={isWarming ? [28, 28.5, 29] : [28, 28.5, 29, 29.5]} {...axis} unit="°" label={{ value: "Temperature (°C)", angle: -90, position: "insideLeft", ...labelStyle }} />
-            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#9BC7E5" }} itemStyle={{ color: "#F7FBFC" }} labelFormatter={(label) => `Year ${label}`} formatter={(value, name) => [`${value} °C`, name === "trend" ? "Trend line" : name === "baseline" ? "Baseline" : "Temperature"]} />
+            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#B4DCEB" }} itemStyle={{ color: "#F7FBFC" }} labelFormatter={(label) => `Year ${label}`} formatter={(value, name) => [`${value} °C`, name === "trend" ? "Trend line" : name === "baseline" ? "Baseline" : "Temperature"]} />
             {isWarming ? (
               <>
                 <Legend verticalAlign="top" height={30} iconType="plainline" wrapperStyle={{ fontSize: 12, color: "#C9E0EE" }} />
-                <Line isAnimationActive={false} name="Annual value" dataKey="value" type="monotone" stroke="#27D0C9" strokeWidth={3.5} dot={{ fill: "#65D9D2", stroke: "#075A9C", strokeWidth: 2, r: 3.5 }} activeDot={{ r: 6, fill: "#F4E8CC" }} />
-                <Line isAnimationActive={false} name="Trend line" dataKey="trend" type="linear" stroke="#F4E8CC" strokeWidth={2.25} strokeDasharray="8 6" dot={false} />
+                <Line isAnimationActive={false} name="Annual value" dataKey="value" type="monotone" stroke="#2FD1C5" strokeWidth={3.5} dot={{ fill: "#7BE2D7", stroke: "#146983", strokeWidth: 2, r: 3.5 }} activeDot={{ r: 6, fill: "#F7E6BD" }} />
+                <Line isAnimationActive={false} name="Trend line" dataKey="trend" type="linear" stroke="#F7E6BD" strokeWidth={2.25} strokeDasharray="8 6" dot={false} />
               </>
             ) : (
               <>
-                <ReferenceLine y={28.4} stroke="#E8D6AE" strokeWidth={2} strokeDasharray="8 6" label={{ value: "Baseline 28.4°C", fill: "#F4E8CC", fontSize: 10, fontWeight: 700, position: "insideTopRight" }} />
-                <Line isAnimationActive={false} dataKey="value" type="monotone" stroke="#27D0C9" strokeWidth={3.5} dot={{ fill: "#65D9D2", stroke: "#075A9C", strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: "#F4E8CC", stroke: "#052F5F", strokeWidth: 2 }} />
+                <ReferenceLine y={28.4} stroke="#EBD096" strokeWidth={2} strokeDasharray="8 6" label={{ value: "Baseline 28.4°C", fill: "#F7E6BD", fontSize: 10, fontWeight: 700, position: "insideTopRight" }} />
+                <Line isAnimationActive={false} dataKey="value" type="monotone" stroke="#2FD1C5" strokeWidth={3.5} dot={{ fill: "#7BE2D7", stroke: "#146983", strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: "#F7E6BD", stroke: "#053043", strokeWidth: 2 }} />
               </>
             )}
           </LineChart>
@@ -119,9 +119,9 @@ export function RegionalAverageView({ response }: { response: OceanResponse }) {
             <CartesianGrid {...grid} />
             <XAxis dataKey="label" {...axis} interval={0} label={{ value: "Month", position: "insideBottom", offset: -17, ...labelStyle }} />
             <YAxis domain={[32.4, 33.8]} ticks={[32.5, 33, 33.5]} {...axis} label={{ value: "Salinity (PSU)", angle: -90, position: "insideLeft", ...labelStyle }} />
-            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#9BC7E5" }} itemStyle={{ color: "#F7FBFC" }} formatter={(value) => [`${value} PSU`, "Salinity"]} />
-            <ReferenceLine y={33.2} stroke="#E8D6AE" strokeWidth={2} strokeDasharray="8 6" label={{ value: "Mean 33.2 PSU", fill: "#F4E8CC", fontSize: 10, fontWeight: 700, position: "insideTopRight" }} />
-            <Line isAnimationActive={false} dataKey="value" type="monotone" stroke="#27D0C9" strokeWidth={3.5} dot={{ fill: "#65D9D2", stroke: "#075A9C", strokeWidth: 2, r: 3.5 }} activeDot={{ r: 6, fill: "#F4E8CC" }} />
+            <Tooltip contentStyle={tooltip} labelStyle={{ color: "#B4DCEB" }} itemStyle={{ color: "#F7FBFC" }} formatter={(value) => [`${value} PSU`, "Salinity"]} />
+            <ReferenceLine y={33.2} stroke="#EBD096" strokeWidth={2} strokeDasharray="8 6" label={{ value: "Mean 33.2 PSU", fill: "#F7E6BD", fontSize: 10, fontWeight: 700, position: "insideTopRight" }} />
+            <Line isAnimationActive={false} dataKey="value" type="monotone" stroke="#2FD1C5" strokeWidth={3.5} dot={{ fill: "#7BE2D7", stroke: "#146983", strokeWidth: 2, r: 3.5 }} activeDot={{ r: 6, fill: "#F7E6BD" }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

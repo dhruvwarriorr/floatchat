@@ -63,3 +63,22 @@ test("preserves query submission, empty-input protection, reset, and staged reso
   assert.match(app, /setView\("idle"\)/);
   assert.match(app, /setQuery\(""\)/);
 });
+
+test("uses the supplied ocean video as an accessible decorative background", async () => {
+  const [app, styles] = await Promise.all([
+    readFile(new URL("src/components/FloatChatApp.tsx", root), "utf8"),
+    readFile(new URL("src/globals.css", root), "utf8"),
+  ]);
+
+  assert.match(app, /className="background-video"/);
+  assert.match(app, /autoPlay/);
+  assert.match(app, /muted/);
+  assert.match(app, /loop/);
+  assert.match(app, /playsInline/);
+  assert.match(app, /src="\/ocean-background\.mp4"/);
+  assert.match(styles, /prefers-reduced-motion: reduce/);
+  assert.match(styles, /\.background-video\s*\{[\s\S]*display: none/);
+
+  await access(new URL("public/ocean-background.mp4", root));
+  await access(new URL("public/ocean-shore.avif", root));
+});

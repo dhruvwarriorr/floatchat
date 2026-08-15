@@ -52,20 +52,20 @@ export function OceanMap({ context }: { context: MapContext }) {
           <title>{`${context.label} — ${context.coordinates}`}</title>
           <defs>
             <linearGradient id="ocean-depth" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#075A9C" />
+              <stop offset="0%" stopColor="#146983" />
               <stop offset="58%" stopColor="#076EAA" />
-              <stop offset="100%" stopColor="#063B73" />
+              <stop offset="100%" stopColor="#0B455C" />
             </linearGradient>
             <linearGradient id="land-shore" x1="0" y1="0" x2="0.9" y2="1">
               <stop offset="0%" stopColor="#D8CAA7" />
               <stop offset="100%" stopColor="#7C9B86" />
             </linearGradient>
             <radialGradient id="lagoon-light" cx="62%" cy="36%" r="58%">
-              <stop offset="0%" stopColor="#19BFC2" stopOpacity="0.32" />
-              <stop offset="100%" stopColor="#19BFC2" stopOpacity="0" />
+              <stop offset="0%" stopColor="#2FD1C5" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#2FD1C5" stopOpacity="0" />
             </radialGradient>
             <filter id="map-shadow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#052F5F" floodOpacity="0.3" />
+              <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#053043" floodOpacity="0.3" />
             </filter>
           </defs>
 

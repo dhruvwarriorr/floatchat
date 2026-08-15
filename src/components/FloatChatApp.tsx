@@ -65,6 +65,21 @@ export function FloatChatApp() {
 
   return (
     <main className={`site-shell${hasOutput ? " has-output" : ""}`}>
+      <div className="ambient-background" aria-hidden="true">
+        <video
+          className="background-video"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster="/ocean-shore.avif"
+        >
+          <source src="/ocean-background.mp4" type="video/mp4" />
+        </video>
+        <div className="background-wash" />
+      </div>
+
       <Header />
       <section className="hero" id="explore" aria-labelledby="hero-title">
         <div className="hero-copy-block">
