@@ -1,4 +1,7 @@
 :root {
+  --font-body: "Manrope Variable", "Avenir Next", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Space Grotesk Variable", "Avenir Next", ui-sans-serif, sans-serif;
+
   /* structure */
   --bg-deep: #07384c;
   --bg-panel: #043344;
@@ -41,8 +44,15 @@ body {
   min-width: 1180px;
   min-height: 100vh;
   color: var(--text-primary);
-  font-family: Inter, "Avenir Next", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   background: var(--bg-deep);
+}
+
+h1,
+h2,
+h3,
+.brand-name {
+  font-family: var(--font-display);
 }
 
 body::before {
