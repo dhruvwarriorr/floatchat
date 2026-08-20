@@ -3,8 +3,31 @@ dist/
 coverage/
 .vite/
 *.tsbuildinfo
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+*.egg-info/
 
 .DS_Store
 *.log
 *.pem
+~$*.docx
 .env*
+!.env.example
+
+# Local scientific source files can be large or license-sensitive. Only the
+# versioned, reviewable artifacts explicitly allowed below belong in Git.
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/baselines/production/*
+!data/baselines/production/.gitkeep
+data/baselines/validation/*
+!data/baselines/validation/.gitkeep
+demo/cached/*
+!demo/cached/.gitkeep
+demo/screenshots/*
+!demo/screenshots/.gitkeep

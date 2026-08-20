@@ -1,39 +1,71 @@
 # FloatChat-Lite
 
-A frontend-only SIH demonstration for exploring illustrative Indian Ocean temperature, salinity, and trend data through natural-language questions.
+FloatChat-Lite is the hackathon implementation workspace for explainable conversational access to Indian Ocean ARGO observations.
 
-The scientific values are bundled locally for the interface walkthrough. The app has no backend, database, authentication, API keys, external map tiles, or external data requests.
+The repository now separates the already-built interface from the API, scientific data, deployment, evaluation, and demo evidence. The existing frontend was moved intact into `frontend/`; its source, assets, tests, and behaviour were not changed during this restructure.
 
-## Requirements
+## Current implementation status
 
-- Node.js 22.13 or newer
+- `frontend/` is the existing Vite demonstration and still uses bundled illustrative responses.
+- `backend/` is a runnable FastAPI foundation with health checks, the typed `/chat` boundary, a deterministic parser for the pinned query grammar, safe errors, and tests.
+- A real, quality-controlled ARGO subset and its production/validation baselines are **not yet present**. The API reports that state honestly instead of returning invented scientific results.
+- `data/`, `scripts/`, `docs/`, and `demo/` establish the roadmap's evidence and release boundaries.
 
-## Run locally
+## Repository map
 
-```bash
-npm install
-npm run dev
+```text
+frontend/                 Existing React + TypeScript + Vite app
+backend/                  FastAPI contract, services, and tests
+data/
+  raw/                    Local NetCDF inputs; ignored by Git
+  processed/              Versioned query-ready Parquet outputs
+  baselines/production/   Baselines used by live query responses
+  baselines/validation/   Separate known-event validation baselines
+scripts/                  Data, baseline, validation, and evaluation entrypoints
+docs/                     Architecture, contract, execution, and runbook guidance
+demo/                     Cached offline fallback and presentation captures
+deploy/                   Single-container deployment
+AGENTS.md                 Durable instructions for future contributors and agents
 ```
 
-Open `http://localhost:3000`.
+## Local setup
 
-## Quality checks
+Requirements: Node.js 22.13+, Python 3.11+, and `make`.
 
 ```bash
-npm run build
-npm run lint
-npm test
+make setup
 ```
 
-## Supported questions
+Run the two development processes in separate terminals:
 
-- Show temperature profile near Mumbai in July 2024
-- Plot SST time series at 19N, 72.8E from 2015–2024 and tell me if it is unusual
-- Show average salinity in the Bay of Bengal in 2023
-- Is the Arabian Sea warming over time?
+```bash
+make dev-web
+make dev-api
+```
 
-Any unsupported question returns a friendly prompt to use one of the available examples.
+- Web: `http://localhost:3000`
+- API docs: `http://localhost:8000/docs`
+- Liveness: `http://localhost:8000/health/live`
+- Data readiness: `http://localhost:8000/health/ready`
 
-## Map and data boundaries
+The frontend is intentionally not wired to the API yet; contract integration begins only after a query-ready ARGO subset and frozen response fixtures exist.
 
-The regional map uses bundled, simplified GeoJSON coastline geometry rendered directly as SVG. It makes no runtime network requests and is intended for geographic context, not navigation or GIS analysis.
+## Verification
+
+```bash
+make check
+```
+
+This runs the existing frontend tests plus backend lint and tests. It does not prove scientific validity, live-provider reliability, projector acceptance, deployment health, or demo rehearsal success; those require recorded evidence in `docs/evidence/`.
+
+## Hackathon path
+
+Read these before implementation:
+
+1. [Architecture](docs/ARCHITECTURE.md)
+2. [API contract](docs/API_CONTRACT.md)
+3. [48-hour execution plan](docs/HACKATHON_EXECUTION.md)
+4. [Demo runbook](docs/DEMO_RUNBOOK.md)
+5. The supplied `FloatChat-Lite_Project_Documentation.docx` and `FloatChat-Lite_Detailed_Project_Roadmap.docx`
+
+The immediate critical path is real ARGO subset preparation -> separate baselines -> one deterministic profile query -> HTTP contract -> frontend integration. Do not add new product scope before that path works.
