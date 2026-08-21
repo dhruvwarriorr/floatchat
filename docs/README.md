@@ -20,6 +20,7 @@ These describe the target. Current implementation status comes from source/tests
 
 ## Delivery and evidence
 
+- [Beginner development roadmap](ROADMAP.md)
 - [Synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md)
 - [Delivery phases](phases.md)
 - [Executable todo](todo.md)
