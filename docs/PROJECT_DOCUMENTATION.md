@@ -22,7 +22,7 @@ The current repository does not implement this scientific path. It contains an a
 | Anomaly Model | 🟡 legacy | Isolated Z-score/profile-count policy exists; it is not QC-gated or integrated. |
 | Evidence Grade | 🟠 structure | Target enum/panel fields and `services/evidence.py` exist; thresholds/logic/runtime absent. |
 | Evidence panel | 🟠 structure | `services/explain.py` ownership exists; composition/UI absent. |
-| Scientific artifacts/repository | 🔴 | No manifest, Parquet, baselines, or repository success path. |
+| Scientific artifacts/repository | 🟠 source present | INCOIS CSV source exports are present under `data/raw/`; no reviewed 2015–2024 subset, manifest, Parquet, baselines, or repository success path exists. |
 | Quantitative evaluation | 🟠 structure | `evaluation/` workspace exists; fixtures/notebooks/results absent. |
 | Integration/release evidence | 🔴 | Frontend does not call API; evidence log empty. |
 
@@ -34,6 +34,22 @@ The current repository does not implement this scientific path. It contains an a
 - Evidence grade from valid count, baseline `n`, distinct-float/spatial coverage, and QC pass rate.
 - Expandable “Why this result?” panel with actual computed values and provenance.
 - Reproducible three-method anomaly comparison and parser/API reliability evaluation.
+
+## Frozen CSV source scope
+
+The project now uses **INCOIS ARGO CSV exports** as its source input, not NetCDF
+files. Each export has a field-name first row and a units second row; the
+preprocessor must skip the units row and preserve identifiers and QC values as
+strings. Required columns are `platform_number`, `cycle_number`, `time`,
+`latitude`, `longitude`, `pres`, raw/adjusted temperature and salinity with
+their QC fields, `data_mode`, and `position_qc`.
+
+The current exports are format-valid candidates, but they are not a
+production-ready dataset: they cover March 2024 and January–May 2025 only and
+do not reach the frozen Bay of Bengal selection or the required 2015–2024
+historical baseline period. They must remain unready until a coverage report,
+manifest, processed artifact, and separate baselines are produced. The complete
+policy is in [SCIENTIFIC_POLICY.md](SCIENTIFIC_POLICY.md).
 
 See [features](feature.md), [API migration](API_CONTRACT.md), and [ADR 0002](adr/0002-qc-before-anomaly-and-evidence-grading.md).
 
@@ -85,8 +101,12 @@ The frontend is not integrated with the API. `make check` is an engineering gate
 
 ## Critical issues
 
-- QC flags/data-mode/adjusted-value precedence and grade thresholds are not frozen.
-- No reviewed dataset, manifest, baselines, repository queries, or API success exists.
+- CSV field, QC/data-mode, adjusted-value, aggregation, baseline-separation, and
+  evaluation-denominator rules are frozen in `SCIENTIFIC_POLICY.md`; numeric
+  Evidence Grade thresholds remain intentionally unresolved pending review of a
+  correct coverage-complete CSV subset.
+- No reviewed 2015–2024 CSV subset, manifest, baselines, repository queries, or
+  API success exists.
 - Target response models are structurally defined, but the anomaly scaffold and frontend still use legacy Low/Medium/High confidence and no runtime produces the target response.
 - No quantitative labels, notebooks, results, provider reliability measurements, or response-latency measurements exist.
 - Architecture/PRD target Plotly/Leaflet while accepted source uses Recharts/static map; an explicit decision is required.

@@ -170,6 +170,20 @@ The optional LLM parser is deliberately outside the critical path. The determini
 
 Turn unresolved scientific assumptions into one reviewed policy that every later stage can implement and test.
 
+### Frozen source-format scope
+
+The MVP accepts INCOIS ARGO **CSV exports** under `data/raw/` as raw input. A
+source file has a field-name first row and a units second row; preprocessing
+skips the units row and preserves identifiers/QC flags as strings. It must
+contain profile identity, time, coordinates, pressure, raw/adjusted temperature
+and salinity, parameter QC fields, `data_mode`, and `position_qc`.
+
+The currently installed CSV exports are not yet the reviewed production subset:
+they cover March 2024 and January–May 2025, and do not cover the required
+2015–2024 history or Bay of Bengal longitude range. They may be used for CSV
+parser/schema work only. They must not produce a baseline, `ready` manifest,
+real API success response, Evidence Grade threshold, or scientific claim.
+
 ### Learn
 
 - How ARGO profile variables, QC flags, adjusted values, and data modes relate.
@@ -201,10 +215,10 @@ Turn unresolved scientific assumptions into one reviewed policy that every later
 
 ### Deliverable
 
-[Scientific and evaluation policy](SCIENTIFIC_POLICY.md). Its source, QC,
+[Scientific and evaluation policy](SCIENTIFIC_POLICY.md). Its CSV source, QC,
 aggregation, baseline, evaluation, UI, and ownership rules are frozen. Final
 Evidence Grade thresholds remain fail-closed until the correct 2015–2024
-dataset is installed and its coverage distributions are reviewed.
+CSV subset is installed and its coverage distributions are reviewed.
 
 ### Common mistakes
 
@@ -221,12 +235,15 @@ dataset is installed and its coverage distributions are reviewed.
 
 ### Goal
 
-Create a deterministic offline path from the selected ARGO source to a small, inspectable Parquet artifact that retains enough metadata to audit every exclusion.
+Create a deterministic offline path from the selected INCOIS CSV exports to a
+small, inspectable Parquet artifact that retains enough metadata to audit every
+exclusion.
 
 ### Build tasks
 
 1. Implement the preprocessing command under `scripts/` using pandas/PyArrow.
-2. Retain the reviewed profile identity, location, time, depth, raw/adjusted values, QC flags, and data-mode fields.
+2. Skip the CSV units row; retain the reviewed profile identity, location, time,
+   depth, raw/adjusted values, QC flags, and data-mode fields.
 3. Normalize dates, coordinates, units, missing values, and identifiers deterministically.
 4. Record source URL/provider, licence, retrieval date, coverage, build command, policy version, artifact version, row/profile/float counts, and hashes in `data/manifest.json`.
 5. Review representative accepted, rejected, adjusted, delayed-mode, shallow, sparse, and missing-value profiles manually.
