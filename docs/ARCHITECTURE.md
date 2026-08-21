@@ -37,9 +37,9 @@ graph TD
 | Frontend | React + TypeScript, Plotly.js (charts), Leaflet (maps) | Fast to build a chat UI with interactive charts/maps; both libraries are well-documented and demo-reliable |
 | Backend / API | Python 3.10+, FastAPI | Async-friendly, minimal boilerplate, fast to stand up endpoints in a hackathon timeframe |
 | Query Parsing | Direct LLM API calls (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) — no LangChain | Direct calls mean fewer abstraction layers and failure modes than a framework; easier to debug live |
-| Data Processing | pandas, numpy, xarray | Standard scientific Python stack for converting NetCDF ARGO data into query-able tables |
+| Data Processing | pandas, NumPy | Standard scientific Python stack for validating INCOIS CSV exports and producing query-able tables |
 | Anomaly Model | scikit-learn (Z-score helpers), no Isolation Forest | Z-score vs. climatology is simple to implement, explain to judges, and validate in 2 days |
-| Data Storage | CSV/Parquet files (preprocessed from NetCDF), no MongoDB | Zero-config, fast, nothing to break on demo day; the dataset is small and read-heavy, not written to live |
+| Data Storage | CSV/Parquet files (preprocessed from reviewed INCOIS CSV exports), no MongoDB | Zero-config, fast, nothing to break on demo day; the dataset is small and read-heavy, not written to live |
 | Deployment | Hugging Face Spaces | Proven path used successfully by SIH25040 (2025) teams |
 | Auth | None | Out of scope — single-user demo tool, no accounts or persistence of user data |
 
@@ -68,7 +68,7 @@ graph TD
 ### 4.5 Data Layer
 - **Responsibility:** Reads preprocessed ARGO Parquet/CSV data and exposes `get_profile()`, `get_regional_average()`, and `get_time_series()` functions that return chart-ready data plus raw record counts. Does **not** decide trustworthiness — that's the QC Filter's job — it only retrieves what matches the query's region/time/parameter.
 - **Interfaces:** Called by the FastAPI Backend with structured query parameters; reads from the Parquet/CSV data store.
-- **Depends on:** Preprocessed ARGO dataset (NetCDF → Parquet/CSV pipeline, run ahead of the live demo), including the `qc_flag` field per record (Section 5).
+- **Depends on:** Preprocessed ARGO dataset (INCOIS CSV → Parquet/CSV pipeline, run ahead of the live demo), including the retained parameter QC fields per record (Section 5).
 
 ### 4.6 QC Filter (Data-Quality Path)
 - **Responsibility:** Excludes records whose ARGO quality-control flag marks them as bad, and prefers adjusted/delayed-mode values over raw real-time values for historical (non-live) analysis. Outputs the QC-passed record set plus `valid_profile_count` and `distinct_float_count`. If too few valid observations remain after filtering, sets a `data_quality_warning` flag rather than silently passing thin data downstream.
@@ -205,7 +205,7 @@ erDiagram
 - **Hosting:** Hugging Face Spaces, following the SIH25040 (2025) precedent — a single Space serving both the FastAPI backend and the built React frontend (or two Spaces if split is simpler for the team).
 - **Environments:** Single environment for the hackathon (no separate dev/staging/prod) — local development against the same preprocessed Parquet/CSV files that ship to the demo Space.
 - **CI/CD:** None formalized for the hackathon; deployment is a manual push to the Hugging Face Space, verified against the three pinned demo queries before presentation.
-- **Data pipeline:** One-time offline preprocessing step (NetCDF → Parquet/CSV, baseline precomputation) run before the live demo — never repeated live, to avoid latency and failure risk.
+- **Data pipeline:** One-time offline preprocessing step (INCOIS CSV → Parquet/CSV, baseline precomputation) run before the live demo — never repeated live, to avoid latency and failure risk.
 - **Fallback path:** If real ARGO ingestion isn't query-ready by Day 1, hour 4, the pipeline swaps in a small pre-vetted fallback subset (1–2 regions, 2 years), clearly labeled internally as non-validated.
 
 ## 8. Security Considerations

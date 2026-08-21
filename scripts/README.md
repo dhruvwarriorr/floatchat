@@ -2,7 +2,7 @@
 
 Implement these entrypoints in critical-path order:
 
-1. `preprocess_argo.py`: NetCDF -> validated profile Parquet plus manifest draft.
+1. `preprocess_argo.py`: INCOIS CSV exports -> validated profile Parquet plus manifest draft.
 2. `build_baselines.py`: separate production and validation mean/std/count artifacts.
 3. `validate_anomalies.py`: fixed labeled scientific evaluation with exact recorded output; do not call a sparse-profile Z-score result a marine heatwave.
 4. `evaluate_methods.py`: compare the regional-average baseline, unfiltered Z-score, and QC-filtered/evidence-graded pipeline.

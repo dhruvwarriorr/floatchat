@@ -6,10 +6,10 @@
 FloatChat-Lite is an explainable conversational assistant for exploring Indian Ocean ARGO float data. Users ask natural-language questions about ocean temperature and salinity, and the system returns a plain-language answer, an interactive chart and map, and — where relevant — a data-backed anomaly flag with a clear explanation of how it was computed. It matters now because ARGO data is scientifically valuable but locked behind technical formats (NetCDF, scientific portals), and prior hackathon attempts (SIH25040, 2025) exposed raw data without anomaly awareness or explainability, undermining trust.
 
 ## 2. Problem Statement
-Oceanographic ARGO data covering the Indian Ocean is publicly available but effectively inaccessible to non-specialists. Forecasters, researchers, students, and policy analysts currently must learn NetCDF/xarray tooling — a process that can take weeks — before they can ask even a simple question like "what was the temperature near Mumbai last July?" Even when analytics exist, anomaly detection is typically a back-end-only process invisible to the end user, and AI-generated answers rarely explain their own reasoning, which erodes trust in high-stakes domains like climate and policy. The 2025 cohort of FloatChat teams demonstrated basic query-to-chart pipelines but did not address anomaly flagging, explainability, or data sufficiency — leaving a clear, evidenced gap this project targets.
+Oceanographic ARGO data covering the Indian Ocean is publicly available but effectively inaccessible to non-specialists. Forecasters, researchers, students, and policy analysts currently must work through scientific portals and quality-control fields before they can ask even a simple question like "what was the temperature near Mumbai last July?" Even when analytics exist, anomaly detection is typically a back-end-only process invisible to the end user, and AI-generated answers rarely explain their own reasoning, which erodes trust in high-stakes domains like climate and policy. The 2025 cohort of FloatChat teams demonstrated basic query-to-chart pipelines but did not address anomaly flagging, explainability, or data sufficiency — leaving a clear, evidenced gap this project targets.
 
 ## 3. Goals
-- Let a non-expert user retrieve and understand Indian Ocean ARGO temperature/salinity data using natural language, with no NetCDF/xarray knowledge required.
+- Let a non-expert user retrieve and understand Indian Ocean ARGO temperature/salinity data using natural language, with no scientific-file or QC-format knowledge required.
 - Surface unusual ocean conditions (anomalies/trends) automatically, using a transparent, explainable statistical method rather than a black box.
 - Make every answer and every anomaly flag independently explainable: data source, computation method, and a plain-language "why," including how much data backs the answer.
 - Ship a working, rehearsed, judge-ready demo within a 48-hour hackathon window without deferring core explainability or anomaly features to "future work."
@@ -26,12 +26,12 @@ Oceanographic ARGO data covering the Indian Ocean is publicly available but effe
 | Persona | Description | Primary need |
 |---|---|---|
 | Climate & Weather Forecaster | Works at IMD, INCOIS, or NCMRWF; uses ocean data for monsoon/cyclone prediction | A fast, trustworthy first read on ocean conditions before running complex models |
-| Oceanographer / Researcher | At INCOIS, NIO, IITs, IISc, or C-MMACS; studies Indian Ocean dynamics | Quick exploration of profiles/trends without weeks of NetCDF/xarray setup |
+| Oceanographer / Researcher | At INCOIS, NIO, IITs, IISc, or C-MMACS; studies Indian Ocean dynamics | Quick exploration of profiles/trends without weeks of manual export/QC setup |
 | University Student | Doing coursework or thesis work on ocean temperature/salinity trends | Accessible entry point into real ARGO data for academic work |
 | Policy Analyst | At MoES, NITI Aayog, NDMA, or a state coastal authority | Fast, defensible ocean-condition insights without waiting on a scientist |
 
 ## 6. User Stories
-- As a forecaster, I want to ask "Show temperature profile near Mumbai in July 2024," so that I get an instant depth-profile chart instead of digging through NetCDF files.
+- As a forecaster, I want to ask "Show temperature profile near Mumbai in July 2024," so that I get an instant depth-profile chart instead of digging through ARGO exports.
 - As a researcher, I want to ask "Plot SST time series at 19N, 72.8E for 2015–2024 and tell me if it's unusual," so that I can quickly spot anomalous periods worth deeper investigation.
 - As a student, I want to ask "Average salinity in Bay of Bengal in 2023," so that I can pull a defensible regional figure for coursework without learning xarray.
 - As a policy analyst, I want every anomaly flag to explain its baseline and Z-score in plain language, so that I can trust and cite the result without needing a statistics background.
@@ -83,7 +83,7 @@ Oceanographic ARGO data covering the Indian Ocean is publicly available but effe
 
 ## 9. Constraints & Assumptions
 - **Constraint:** total build time is 48 hours across a 6-person team; anything not shippable in that window is explicitly deferred (see Non-Goals).
-- **Constraint:** ARGO data must be sourced from INCOIS and preprocessed from NetCDF into CSV/Parquet before the demo; no live NetCDF parsing at query time.
+- **Constraint:** ARGO data must be sourced from INCOIS CSV exports and preprocessed into validated CSV/Parquet artifacts before the demo; no live provider fetch or source-file parsing at query time.
 - **Constraint:** deployment target is Hugging Face Spaces, following the precedent set by SIH25040 (2025) teams.
 - **Assumption:** a prompted pre-trained LLM (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) is sufficient for the fixed query schema without fine-tuning.
 - **Assumption:** a Z-score-vs-climatology model is statistically sufficient and easier to explain to judges than a more complex anomaly detector.
@@ -91,16 +91,16 @@ Oceanographic ARGO data covering the Indian Ocean is publicly available but effe
 - **Assumption:** if real ARGO ingestion is not query-ready by Day 1, hour 4, the team will fall back to a small pre-vetted subset (1–2 regions, 2 years) rather than delay the whole build.
 
 ## 10. Dependencies
-- **INCOIS** (Indian National Centre for Ocean Information Services) — source of ARGO float NetCDF data (temperature, salinity, pressure/depth, lat/lon, time), 2015–2024 subset.
+- **INCOIS** (Indian National Centre for Ocean Information Services) — source of ARGO float CSV exports (temperature, salinity, pressure/depth, lat/lon, time, QC, adjusted values, and data mode), 2015–2024 subset.
 - **LLM API provider** (OpenAI GPT-4o-mini, Anthropic Claude, or a locally hosted Ollama Llama 3.1) — powers the primary query parser.
 - **Hugging Face Spaces** — hosting/deployment target for the demo.
 - **Plotly.js** and **Leaflet** — frontend charting and mapping libraries.
-- **FastAPI, pandas, numpy, xarray, scikit-learn** — backend data processing and anomaly-scoring stack.
+- **FastAPI, pandas, NumPy, PyArrow** — backend CSV processing and anomaly-scoring stack.
 
 ## 11. Risks
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| ARGO NetCDF-to-Parquet ingestion isn't query-ready in time | Medium | High | Hour-4 Day-1 checkpoint; pre-vetted fallback subset (1–2 regions, 2 years) kept ready as a swap-in |
+| ARGO CSV-to-Parquet ingestion isn't query-ready in time | Medium | High | Hour-4 Day-1 checkpoint; pre-vetted fallback subset (1–2 regions, 2 years) kept ready as a swap-in |
 | 2019 heatwave validation doesn't actually flag as anomalous | Medium | Medium | Honest reporting, region widening, or swapping to a different real event, time-boxed to 1 hour on Day 2 morning — never a placeholder number |
 | LLM parser fails or times out live during the demo | Low–Medium | High | Rule-based fallback parser with city gazetteer, always tagged `parser_used`, disclosed in the UI |
 | Anomaly badge shown on statistically thin data, misleading judges | Medium | Medium | Badge suppressed and replaced with a neutral "not enough data" state whenever confidence is low |

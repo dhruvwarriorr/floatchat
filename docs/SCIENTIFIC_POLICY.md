@@ -25,23 +25,25 @@ the first real-data contract and must not be presented as a verified result.
 
 ### Frozen source
 
-- **Provider/provenance:** Core Argo profile NetCDF files handled by the INCOIS
-  Data Assembly Centre and distributed through an official Argo GDAC.
-- **Collection:** `dac/incois`, profile files only; no BGC, trajectory,
-  technical, gridded, satellite, model, or value-added product.
-- **Version:** a dated GDAC snapshot or a file list plus per-file SHA-256 hashes
-  recorded in `data/manifest.json` at preprocessing time.
-- **Licence/access:** Argo data are freely available without restriction. The
-  product must include the Argo acknowledgement and snapshot DOI when one is
-  used. Source files also retain their provider metadata and disclaimers.
-- **Discovery only:** INCOIS ERDDAP dataset `Indian_ARGO_Floats` may be used to
-  find candidate records. Its flattened export is not the production input
-  because it does not expose `DATA_MODE` or position QC and can omit adjusted
-  values needed by this policy.
+- **Provider/provenance:** INCOIS Indian ARGO CSV exports supplied by the team
+  under `data/raw/`. No external source is fetched at request time.
+- **Collection:** core temperature/salinity profile rows only; no BGC,
+  trajectory, technical, gridded, satellite, model, or value-added product.
+- **Format contract:** each source file has a field-name first row and units
+  second row. Preprocessing skips the units row, reads identifiers and QC values
+  as strings, rejects a duplicate header within the data, and records each file
+  name and SHA-256 in `data/manifest.json`.
+- **Required CSV columns:** `platform_number`, `cycle_number`, `time`,
+  `latitude`, `longitude`, `pres`, `temp`, `temp_qc`, `temp_adjusted`,
+  `temp_adjusted_qc`, `psal`, `psal_qc`, `psal_adjusted`,
+  `psal_adjusted_qc`, `data_mode`, and `position_qc`.
+- **Licence/access:** the manifest records the INCOIS export URL/access date and
+  the licence text supplied with the export. The product includes the required
+  Argo acknowledgement when it uses Argo data.
 
-If INCOIS-DAC profiles do not cover all pinned selections, preprocessing must
-fail with a coverage report. Expanding to other DACs requires a policy revision;
-the application must not silently change its source.
+If the reviewed CSV exports do not cover all pinned selections, preprocessing
+must fail with a coverage report. Replacing INCOIS or silently adding a second
+source requires a policy revision.
 
 ### Frozen spatial and temporal subset
 
@@ -59,23 +61,22 @@ included. Distance uses the haversine formula with Earth radius 6,371.0088 km.
 Every prepared observation retains these source or derived fields:
 
 - source file path, source file SHA-256, dataset version, and policy version;
-- `PLATFORM_NUMBER`, `CYCLE_NUMBER`, `DIRECTION`, and a derived stable
-  `profile_id = PLATFORM_NUMBER:CYCLE_NUMBER:DIRECTION`;
-- profile time, `JULD_QC`, latitude, longitude, and `POSITION_QC`;
-- pressure plus `PRES_QC`, `PRES_ADJUSTED`, `PRES_ADJUSTED_QC`, and adjusted
-  pressure error when supplied;
-- raw and adjusted `TEMP` and `PSAL`, their corresponding QC flags, and
-  adjusted errors when supplied;
-- `DATA_MODE` and parameter-specific data mode when the source format supplies
-  it;
+- `platform_number`, `cycle_number`, and a derived stable
+  `profile_id = platform_number:cycle_number`;
+- profile time, latitude, longitude, and `position_qc`;
+- pressure (`pres`), used only as a depth proxy because the export does not
+  include a separate pressure-QC or adjusted-pressure field;
+- raw and adjusted `temp` and `psal` plus their corresponding QC flags;
+- `data_mode`;
 - selected value, selected QC flag, selected value kind (`raw` or `adjusted`),
   selection reason, exclusion reason, and all spatial/grouping keys;
 - source row/profile index so an output can be traced back without relying on
   row order.
 
 Missing required identity, time, position-QC, pressure, parameter-QC, or
-data-mode fields make a file invalid. Missing adjusted values are allowed only
-where the rule below explicitly permits raw real-time display.
+data-mode columns make a file invalid. Missing adjusted values are allowed only
+where the rule below explicitly permits raw real-time display. The absence of a
+separate pressure/time QC field is recorded in provenance; it is not fabricated.
 
 ## 3. QC and value precedence
 
@@ -84,8 +85,8 @@ an anomaly label and rejected observations never reach anomaly scoring.
 
 ### Accepted flags
 
-- `JULD_QC`, `POSITION_QC`, pressure QC, and the selected parameter QC must all
-  equal Argo flag `1` (good data).
+- `position_qc` and the selected parameter QC must both equal Argo flag `1`
+  (good data). The CSV exports do not include a separate time or pressure QC.
 - Flags `0`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, blank, missing, or unknown
   are excluded from the scientific aggregate and retained in audit counts.
 - A future decision to accept `2` (probably good) requires a policy revision
@@ -101,7 +102,8 @@ an anomaly label and rejected observations never reach anomaly scoring.
    scoring.
 4. Never substitute raw data when mode `A` or `D` has a missing or rejected
    adjusted value. Exclude it and record the reason.
-5. Pressure and the requested parameter must independently pass the rule.
+5. The requested parameter must pass the rule; pressure is a depth proxy whose
+   separate QC is unavailable in this CSV format.
 
 The source mode, selected field, selected QC flag, retained/excluded counts,
 and exclusion reason remain visible to provenance composition.
@@ -110,16 +112,16 @@ and exclusion reason remain visible to provenance composition.
 
 ### Profile identity and duplicates
 
-`PLATFORM_NUMBER + CYCLE_NUMBER + DIRECTION` identifies a profile. Only
-ascending profiles (`DIRECTION=A`) enter aggregates. Descending profiles remain
-auditable but are excluded. Exact duplicate observation rows are collapsed.
-Conflicting duplicates are resolved by `D` over `A` over `R`, then newest
-`DATE_UPDATE`; a remaining conflicting tie is a preprocessing error rather than
-an arbitrary selection.
+`platform_number + cycle_number` identifies a profile in the CSV export. Exact
+duplicate observation rows are collapsed. Conflicting duplicates are resolved by
+`D` over `A` over `R`, then source-file modification time recorded in the
+manifest; a remaining conflicting tie is a preprocessing error rather than an
+arbitrary selection. The CSV export has no direction field, so direction-based
+selection is not applied and this source limitation is reported in provenance.
 
 ### Mumbai depth profile
 
-- Select July 2024 ascending profiles inside `mumbai-50km`.
+- Select July 2024 profiles inside `mumbai-50km`.
 - Apply QC and value precedence before aggregation.
 - Use pressure in decibar as the displayed depth proxy and label it as such.
 - Bin selected values into `[0,10)`, `[10,25)`, `[25,50)`, `[50,100)`,
@@ -142,7 +144,7 @@ an arbitrary selection.
 
 ### Bay of Bengal salinity
 
-- Select ascending profiles in the frozen box during 2023.
+- Select profiles in the frozen box during 2023.
 - For each profile, take the median of valid adjusted salinity observations
   from 0 through 100 dbar, inclusive.
 - Compute monthly arithmetic means across profile medians. The annual answer is
@@ -297,21 +299,13 @@ name rather than only a role before a claim is approved for presentation.
 
 ## 10. Review of the currently downloaded file
 
-`data/raw/Indian_ARGO_Floats_2f13_9046_0763_U1787326430188.nc` was inspected on
-21 August 2026 and rejected as the production subset.
-
-- SHA-256: `0bc4974eb7628fc67d66cf02dc9c2c0d509cacabc7d65ca92e10e1524748f5f4`
-- 364 observation rows, four profiles, and four floats;
-- time coverage: 16–23 April 2025 only;
-- latitude: 15.884805 S to 1.732282 S;
-- longitude: 62.891297 E to 85.176593 E;
-- all raw pressure, temperature, and salinity flags are `1`;
-- adjusted pressure, temperature, and salinity values are entirely missing;
-- `DATA_MODE` and `POSITION_QC` are absent.
-
-It covers none of the frozen date/location requirements and cannot support
-historical adjusted-value precedence or grade-threshold review. It remains a
-useful negative ingestion fixture but must not be marked ready.
+The CSV exports present on 21 August 2026 use the required 16-column schema,
+including `data_mode`, `position_qc`, raw/adjusted parameter values, and
+parameter QC flags. They are valid source-format candidates but not yet the
+production subset: they cover March 2024 and January–May 2025, not the frozen
+2015–2024 period; their longitude coverage ends west of the Bay of Bengal
+selection; and their coverage report has not yet been generated. They must not
+be marked ready or used to choose Evidence Grade thresholds.
 
 ## 11. Phase 0 acceptance status
 
@@ -323,14 +317,17 @@ useful negative ingestion fixture but must not be marked ready.
 - [x] Evaluation labels and denominators are reproducible.
 - [x] Frontend library direction is recorded without redesigning the accepted UI.
 
-**Blocking input:** install the correct 2015–2024 INCOIS-DAC profile subset,
-including `DATA_MODE`, position/time QC, raw and adjusted values/QC fields. Then
-generate and review the coverage distributions and amend Section 6.
+**Blocking input:** install the correct 2015–2024 INCOIS CSV subset, including
+the required columns above. Then generate and review the coverage distributions
+and amend Section 6.
 
 ## 12. Change log
 
 - **0.1 — 2026-08-21:** froze source, scope, schema, QC/value precedence,
   spatial and aggregation rules, baseline separation, anomaly bands, reason
   codes, evaluation denominators, frontend direction, and ownership roles;
-  rejected the installed one-week ERDDAP export; left dataset-derived grade
-  thresholds fail-closed pending a correct subset.
+  left dataset-derived grade thresholds fail-closed pending a correct subset.
+- **0.2 — 2026-08-21:** accepted INCOIS CSV exports as source input; documented
+  their two-header-row format, required fields, and unavailable direction/time/
+  pressure-QC fields; recorded that the currently installed monthly files do
+  not yet meet the frozen coverage requirements.

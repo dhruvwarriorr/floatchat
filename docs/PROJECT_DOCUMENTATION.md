@@ -41,7 +41,7 @@ See [features](feature.md), [API migration](API_CONTRACT.md), and [ADR 0002](adr
 
 - Current frontend: React 19, TypeScript 5.9, Vite 8, Recharts, static local map image.
 - Target authority names Plotly/Leaflet; migration is unresolved and not performed by structural synchronization.
-- Backend: Python ≥3.11, FastAPI/Pydantic/Uvicorn; planned pandas/xarray/NumPy/PyArrow path.
+- Backend: Python ≥3.11, FastAPI/Pydantic/Uvicorn; planned pandas/NumPy/PyArrow CSV path.
 - Storage: versioned Parquet and separate baseline artifacts; no database.
 - Runtime: one container; hosting target remains unverified in current evidence despite the PRD target.
 

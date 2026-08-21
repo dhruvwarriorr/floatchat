@@ -225,7 +225,7 @@ Create a deterministic offline path from the selected ARGO source to a small, in
 
 ### Build tasks
 
-1. Implement the preprocessing command under `scripts/` using pandas/xarray/PyArrow as needed.
+1. Implement the preprocessing command under `scripts/` using pandas/PyArrow.
 2. Retain the reviewed profile identity, location, time, depth, raw/adjusted values, QC flags, and data-mode fields.
 3. Normalize dates, coordinates, units, missing values, and identifiers deterministically.
 4. Record source URL/provider, licence, retrieval date, coverage, build command, policy version, artifact version, row/profile/float counts, and hashes in `data/manifest.json`.

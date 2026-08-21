@@ -20,7 +20,7 @@ backend/                  FastAPI contract, services, and tests
   app/services/evidence.py Planned multi-signal evidence grading
   app/services/explain.py Planned computation-transparency/provenance panel
 data/
-  raw/                    Local NetCDF inputs; ignored by Git
+  raw/                    Local ARGO CSV source exports; ignored by Git
   processed/              Versioned query-ready Parquet outputs
   baselines/production/   Baselines used by live query responses
   baselines/validation/   Separate known-event validation baselines

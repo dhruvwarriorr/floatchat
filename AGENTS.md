@@ -18,7 +18,7 @@ Do not commit or push automatically. Preserve unrelated local changes. Never pre
 ## Hard boundaries
 
 - The existing application under `frontend/` is an accepted illustrative UI. Do not redesign it, rewrite its copy, change interactions, replace Recharts/static map assets, or connect it to a new contract unless the current user explicitly requests implementation work beyond structural synchronization.
-- Keep the core stack small: React/TypeScript/Vite, FastAPI/Pydantic, pandas/xarray preprocessing, Parquet, NumPy z-scores, one optional LLM parser, and a deterministic Python parser.
+- Keep the core stack small: React/TypeScript/Vite, FastAPI/Pydantic, pandas CSV preprocessing, Parquet, NumPy z-scores, one optional LLM parser, and a deterministic Python parser.
 - Do not add authentication, a database server, chat history, LangChain, vector search, fine-tuning, multiple model providers, microservices, Kubernetes, or new product domains during the core build.
 - Never place provider keys in the frontend, tracked files, screenshots, cached JSON, logs, notebooks, results, or presentation material.
 - Do not call a sparse ARGO profile Z-score result a “marine heatwave.” Use “upper-ocean temperature anomaly” or “salinity anomaly” unless a separate formal marine-heatwave method is implemented and validated.
@@ -26,7 +26,7 @@ Do not commit or push automatically. Preserve unrelated local changes. Never pre
 
 ## Architecture rules
 
-- The browser talks only to `POST /chat`; it never reads NetCDF/Parquet or calls a model/data provider directly.
+- The browser talks only to `POST /chat`; it never reads source CSV/Parquet artifacts or calls a model/data provider directly.
 - FastAPI validates all inputs and responses. Treat query text as untrusted data, never as code or a filesystem path.
 - Parsing, data selection, QC filtering, anomaly calculation, evidence grading, provenance composition, and HTTP mapping stay separate.
 - The mandatory runtime order for anomaly requests is: retrieve matching records → apply ARGO QC/data-mode policy → aggregate QC-passed observations → score against the production baseline → compute evidence grade → compose the evidence panel.

@@ -3,7 +3,7 @@
 This directory contains versioned scientific artifacts, not application code.
 
 ```text
-raw/                    Local source NetCDF files; never committed by default
+raw/                    Local source CSV exports; never committed by default
 processed/              Query-ready profile tables, normally Parquet
 baselines/production/   Baselines used by live responses
 baselines/validation/   Independent known-event validation baselines
@@ -14,7 +14,7 @@ Do not put a dataset into service merely because a file exists. A release-ready 
 
 The prepared profile schema must retain enough ARGO quality metadata to enforce the mandatory data-quality path before anomaly scoring. At minimum, the team must freeze and document observation-level QC flags, raw versus adjusted values, `data_mode`, and the record/profile identity needed to report retained observations and distinct floats. Do not reduce QC to a single undocumented boolean during preprocessing.
 
-Raw, processed, and baseline artifacts are ignored by default because they can be large and may have redistribution constraints. Add only deliberately reviewed, hackathon-sized artifacts after confirming source terms.
+Raw CSV exports, processed, and baseline artifacts are ignored by default because they can be large and may have redistribution constraints. Add only deliberately reviewed, hackathon-sized artifacts after confirming source terms. The accepted INCOIS CSV format has a field-name first row and a units second row; preprocessing must skip the units row, preserve identifiers and QC columns as strings, and record the exact source filenames and hashes in the manifest.
 
 Production and validation baselines must remain separate. The 2015-2018 validation period described in the project documentation is evidence work, not the baseline for live responses.
 
