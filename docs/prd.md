@@ -1,104 +1,124 @@
-# FloatChat-Lite — Product Requirements Document
+# FloatChat-Lite product requirements
 
-> **Status:** Draft | **Last updated:** 13 August 2026 | **Owner:** Swarangi Limaye / SIH26 Team
+> Status: active product baseline; implementation incomplete
+> Last synchronized: 21 August 2026
 
-## 1. Overview
-FloatChat-Lite is an explainable conversational assistant for exploring Indian Ocean ARGO float data. Users ask natural-language questions about ocean temperature and salinity, and the system returns a plain-language answer, an interactive chart and map, and — where relevant — a data-backed anomaly flag with a clear explanation of how it was computed. It matters now because ARGO data is scientifically valuable but locked behind technical formats (NetCDF, scientific portals), and prior hackathon attempts (SIH25040, 2025) exposed raw data without anomaly awareness or explainability, undermining trust.
+## 1. Product overview
 
-## 2. Problem Statement
-Oceanographic ARGO data covering the Indian Ocean is publicly available but effectively inaccessible to non-specialists. Forecasters, researchers, students, and policy analysts currently must learn NetCDF/xarray tooling — a process that can take weeks — before they can ask even a simple question like "what was the temperature near Mumbai last July?" Even when analytics exist, anomaly detection is typically a back-end-only process invisible to the end user, and AI-generated answers rarely explain their own reasoning, which erodes trust in high-stakes domains like climate and policy. The 2025 cohort of FloatChat teams demonstrated basic query-to-chart pipelines but did not address anomaly flagging, explainability, or data sufficiency — leaving a clear, evidenced gap this project targets.
+FloatChat-Lite aims to make a narrow set of Indian Ocean ARGO temperature and salinity questions accessible through natural language, while showing source, method, data sufficiency, and confidence. The repository currently demonstrates the intended experience with illustrative values and provides a backend safety scaffold; it does not yet answer real-data questions end-to-end.
+
+## 2. Problem statement
+
+ARGO observations are distributed in scientific formats and require data-selection, QC, and analysis knowledge. The product goal is a transparent answer-oriented workflow for non-specialists, not a replacement for operational forecasting or expert oceanographic analysis.
+
+Claims about gaps in previous teams, model performance, validation, user impact, or operational usefulness require direct evidence. They are not treated as established project results here.
 
 ## 3. Goals
-- Let a non-expert user retrieve and understand Indian Ocean ARGO temperature/salinity data using natural language, with no NetCDF/xarray knowledge required.
-- Surface unusual ocean conditions (anomalies/trends) automatically, using a transparent, explainable statistical method rather than a black box.
-- Make every answer and every anomaly flag independently explainable: data source, computation method, and a plain-language "why," including how much data backs the answer.
-- Ship a working, rehearsed, judge-ready demo within a 48-hour hackathon window without deferring core explainability or anomaly features to "future work."
 
-## 4. Non-Goals
-- Multilingual support (Hindi, Marathi, Tamil, etc.) — deferred to Phase 2 (post-hackathon).
-- Integration with fishing zone advisories, cyclone tracks, or wave-height data (INCOIS PFZ, IMD, MACHLI app) — future scope only.
-- Multi-turn conversational memory / follow-up questions — queries are stateless by design for this build.
-- Production-grade authentication, multi-user accounts, or a persistent database (MongoDB, etc.) — out of scope for a 2-day build.
-- Fine-tuning an LLM — a prompted pre-trained model is used instead, evaluated against a small test set rather than trained.
-- Advanced ML anomaly detection (e.g., Isolation Forest) — a Z-score-vs-climatology model is used instead, by deliberate scope decision.
+- Answer supported profile and time-series/anomaly questions from a reviewed Indian Ocean ARGO subset.
+- Include source/version, method, dates, spatial selection, profile count, confidence, parser, and proxy caveats in every successful real-data answer.
+- Use an explainable z-score policy with separate production and validation baselines.
+- Remain useful when an optional LLM parser fails by using a deterministic fallback.
+- Deliver a truthful live/local demo plus a sanitized cached fallback.
 
-## 5. Target Users / Personas
-| Persona | Description | Primary need |
-|---|---|---|
-| Climate & Weather Forecaster | Works at IMD, INCOIS, or NCMRWF; uses ocean data for monsoon/cyclone prediction | A fast, trustworthy first read on ocean conditions before running complex models |
-| Oceanographer / Researcher | At INCOIS, NIO, IITs, IISc, or C-MMACS; studies Indian Ocean dynamics | Quick exploration of profiles/trends without weeks of NetCDF/xarray setup |
-| University Student | Doing coursework or thesis work on ocean temperature/salinity trends | Accessible entry point into real ARGO data for academic work |
-| Policy Analyst | At MoES, NITI Aayog, NDMA, or a state coastal authority | Fast, defensible ocean-condition insights without waiting on a scientist |
+Regional average is a secondary goal and should ship only after profile and time-series flows are stable.
 
-## 6. User Stories
-- As a forecaster, I want to ask "Show temperature profile near Mumbai in July 2024," so that I get an instant depth-profile chart instead of digging through NetCDF files.
-- As a researcher, I want to ask "Plot SST time series at 19N, 72.8E for 2015–2024 and tell me if it's unusual," so that I can quickly spot anomalous periods worth deeper investigation.
-- As a student, I want to ask "Average salinity in Bay of Bengal in 2023," so that I can pull a defensible regional figure for coursework without learning xarray.
-- As a policy analyst, I want every anomaly flag to explain its baseline and Z-score in plain language, so that I can trust and cite the result without needing a statistics background.
-- As any user, I want to be told how many ARGO profiles back an answer, so that I know whether to treat a result as precise or merely indicative.
-- As any user, I want a friendly message instead of a raw error when my query can't be parsed or no data exists, so that I'm not stuck guessing what went wrong.
+## 4. Non-goals for the core build
 
-## 7. Requirements
+- Authentication, accounts, persistent chat history, or multi-turn memory.
+- A database server, live NetCDF parsing, microservices, queues, Kubernetes, or background-job infrastructure.
+- LangChain, agent frameworks, vector search, fine-tuning, or multiple LLM providers.
+- Advanced anomaly ML or predictive/forecasting claims.
+- Multilingual, fishing-zone, cyclone, wave-height, mobile, or WhatsApp integrations.
+- Redesigning the accepted frontend.
 
-### 7.1 Functional Requirements
-1. The system must accept a free-text natural-language query and parse it into a structured query (`query_type`, `lat`, `lon`, `parameter`, `date_from`, `date_to`, `include_anomaly`) using an LLM parser.
-2. The system must fall back to a rule-based parser (city gazetteer + regex) if the LLM call fails or times out, and must tag every response with `parser_used: "llm" | "rule_based"`.
-3. The system must support three query types: single-location depth `profile`, `regional_average`, and `time_series`.
-4. The system must retrieve matching ARGO data (temperature and/or salinity) from preprocessed CSV/Parquet files and return it as chart-ready data.
-5. The system must compute an anomaly score (Z-score vs. a precomputed regional/monthly climatology baseline) when a query implies or requests anomaly assessment, and must classify it as `normal`, `mild_positive`, `mild_negative`, `strong_positive`, or `strong_negative`.
-6. The system must return a `data_sufficiency` object (`profile_count`, `coverage_radius_km`, `confidence`) with every data-backed response, using thresholds: 1–5 profiles = low, 6–20 = medium, 21+ = high confidence.
-7. The system must suppress the colored anomaly severity badge and show a neutral "not enough data to assess" state whenever `data_sufficiency.confidence` is `"low"`.
-8. The system must return an `answer_explanation` field describing the data source, aggregation method, and any proxy assumptions (e.g., SST derived from the shallowest measurement ≤10m).
-9. The system must return friendly, specific error messages for `no_data`, `parse_error`, and `general_error` cases — never a raw stack trace or generic failure.
-10. The frontend must render, for every response: a query summary header, a chart (Plotly.js), a map pin (Leaflet), an anomaly badge (when applicable), and an explanation footer with a data-sufficiency line.
-11. The frontend must display a visible disclosure line when `parser_used == "rule_based"`, informing the user the query was parsed in a simplified/degraded mode.
-12. The anomaly model's production baseline must be computed once during preprocessing from the full available pre-query-year history (target 8–9 years) per region/month, and must never be conflated with the shorter 2015–2018 validation-only baseline used in `validate_heatwave.py`.
+## 5. Users and scenarios
 
-### 7.2 Non-Functional Requirements
-- **Explainability:** every answer and every anomaly flag must be explainable in plain language without requiring the user to understand Z-scores or statistics.
-- **Honesty over polish:** no unverified claim (e.g., heatwave validation result, LLM parsing accuracy) may be presented in the demo/pitch unless it has been run and recorded against real output; placeholder numbers are explicitly banned.
-- **Resilience:** the demo must survive a live infrastructure hiccup via a cached fallback (screenshots or precomputed JSON responses) for the three pinned demo queries.
-- **Latency:** anomaly scoring must use precomputed baselines (no live heavy computation) to keep responses fast enough for a live demo.
-- **Reliability of core flow:** the three pinned demo queries must be rehearsed 20+ times and work reliably before presentation.
-- **Simplicity/maintainability:** the stack deliberately avoids LangChain, MongoDB, Isolation Forest, and multi-turn memory to minimize failure surface within the 48-hour build window.
+| User | Need | Pinned scenario |
+| --- | --- | --- |
+| Forecaster/researcher | Quick exploratory vertical context | Temperature profile near Mumbai in July 2024 |
+| Researcher/student | Long-window context and transparent anomaly method | Shallow-water SST proxy at 19N, 72.8E for 2015–2024 |
+| Student | Regional summary, if data is stable | Average salinity in the Bay of Bengal in 2023 |
+| Any user | Honest trust cues and safe failure | Source, method, profile count, confidence, and clear retry guidance |
 
-## 8. Success Metrics
-| Metric | Target | Timeframe |
-|---|---|---|
-| Pinned demo queries working reliably | 3 of 3 (profile, time-series+anomaly, regional average) | By end of Day 2, hour 5 |
-| Heatwave validation check completed | `validate_heatwave.py` run and result recorded (flagged or honestly not-flagged) | By Day 1, hour 5 |
-| LLM parser accuracy on eval set | Real measured number reported (no target inflated pre-measurement) | By Day 2, before pitch |
-| Demo rehearsal reps on pinned queries | 20+ full run-throughs | Before final presentation |
-| Judge comprehension of architecture + explainability value | Judges can restate the problem, data source, and why anomaly/explainability matters, in post-demo Q&A | Live judging session |
+These personas and needs are product assumptions; user research is ⚪ needs verification.
 
-## 9. Constraints & Assumptions
-- **Constraint:** total build time is 48 hours across a 6-person team; anything not shippable in that window is explicitly deferred (see Non-Goals).
-- **Constraint:** ARGO data must be sourced from INCOIS and preprocessed from NetCDF into CSV/Parquet before the demo; no live NetCDF parsing at query time.
-- **Constraint:** deployment target is Hugging Face Spaces, following the precedent set by SIH25040 (2025) teams.
-- **Assumption:** a prompted pre-trained LLM (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) is sufficient for the fixed query schema without fine-tuning.
-- **Assumption:** a Z-score-vs-climatology model is statistically sufficient and easier to explain to judges than a more complex anomaly detector.
-- **Assumption:** ARGO floats' shallowest reported depth bin (2–10m) can serve as a reasonable SST proxy when explicitly disclosed as such.
-- **Assumption:** if real ARGO ingestion is not query-ready by Day 1, hour 4, the team will fall back to a small pre-vetted subset (1–2 regions, 2 years) rather than delay the whole build.
+## 6. Requirements and current status
 
-## 10. Dependencies
-- **INCOIS** (Indian National Centre for Ocean Information Services) — source of ARGO float NetCDF data (temperature, salinity, pressure/depth, lat/lon, time), 2015–2024 subset.
-- **LLM API provider** (OpenAI GPT-4o-mini, Anthropic Claude, or a locally hosted Ollama Llama 3.1) — powers the primary query parser.
-- **Hugging Face Spaces** — hosting/deployment target for the demo.
-- **Plotly.js** and **Leaflet** — frontend charting and mapping libraries.
-- **FastAPI, pandas, numpy, xarray, scikit-learn** — backend data processing and anomaly-scoring stack.
+| ID | Requirement | Status | Current state / remaining work |
+| --- | --- | --- | --- |
+| FR-01 | Accept one non-blank query up to 500 characters | ✅ | Backend model and frontend form both enforce non-empty input; max length is backend-only. |
+| FR-02 | Deterministically parse the pinned grammar | ✅ narrow | Four patterns, full month names, and years are supported; general coordinates/cities are not. |
+| FR-03 | Optional LLM parse with strict validation, timeout, and deterministic fallback | 🟠 | Model enum and environment example exist; adapter/settings/failure tests do not. |
+| FR-04 | Retrieve reviewed profile and time-series data from prepared artifacts | 🔴 | Blocked by absent artifacts and unimplemented repository queries. |
+| FR-05 | Provide regional average only if stable | 🔴 | Parser pattern exists; real retrieval is absent. |
+| FR-06 | Score anomalies from production baselines; skip zero/insufficient std | 🟡 | Policy function and boundary tests exist; baselines and runtime integration do not. |
+| FR-07 | Report low (1–5), medium (6–20), high (21+) confidence | 🟡 | Implemented independently in frontend and backend; not yet driven by real query results. |
+| FR-08 | Suppress severity for low confidence and qualify medium | 🟡 | Implemented in UI/backend policy; not integrated end-to-end. |
+| FR-09 | Explain source, aggregation, selection, dates, and proxy caveats | 🟡 | Illustrative preparation text exists; real explanation service/contract response does not. |
+| FR-10 | Return friendly `parse_error`, `no_data`, `general_error` | 🟡 | Backend emits parse/general errors; no-data path and distinct frontend states are missing. |
+| FR-11 | Render result chart and geographic context | ✅ illustrative | Recharts and static Bhuvan image; no real API data. |
+| FR-12 | Disclose `parser_used=rule_based` | 🟠 | Backend tags parsed params; frontend type/UI does not expose it. |
+| FR-13 | Keep production and validation baselines separate | 🟡 boundary | Directories/schema/architecture exist; no artifacts or builder exists. |
+| FR-14 | Provide health and one-container runtime | 🟡 | Endpoints and recipe exist; data readiness and deployment acceptance are absent. |
 
-## 11. Risks
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| ARGO NetCDF-to-Parquet ingestion isn't query-ready in time | Medium | High | Hour-4 Day-1 checkpoint; pre-vetted fallback subset (1–2 regions, 2 years) kept ready as a swap-in |
-| 2019 heatwave validation doesn't actually flag as anomalous | Medium | Medium | Honest reporting, region widening, or swapping to a different real event, time-boxed to 1 hour on Day 2 morning — never a placeholder number |
-| LLM parser fails or times out live during the demo | Low–Medium | High | Rule-based fallback parser with city gazetteer, always tagged `parser_used`, disclosed in the UI |
-| Anomaly badge shown on statistically thin data, misleading judges | Medium | Medium | Badge suppressed and replaced with a neutral "not enough data" state whenever confidence is low |
-| Schedule overrun eats into testing/rehearsal time | Medium | High | Day 2 hours 5–7 are protected time; if Day 1 overruns 2+ hours, cut `regional_average` query type first, never rehearsal time |
-| Unbenchmarked accuracy or validation claims get cited in the pitch by mistake | Low | High | All such claims explicitly gated behind Section 17-style resolution log / checklist ownership (Member 3) before pitch finalization |
+## 7. Non-functional requirements
 
-## 12. Open Questions
-- [ ] Which LLM provider (GPT-4o-mini vs. Claude 3.5 vs. local Ollama) will be used for the live demo, and is API quota/latency confirmed for demo day?
-- [ ] What is the final confirmed number of years in the production baseline (8 vs. 9) once real data volume is known?
-- [ ] Will the fallback ARGO subset (if triggered) cover the same regions used in the three pinned demo queries?
-- [ ] Who validates the LLM parser eval set (Appendix D) — is this Member 3, Member 4, or shared?
+- **Honesty:** illustrative, cached, planned, and verified real outputs must be distinguishable.
+- **Safety:** input is validated and never treated as code or a filesystem path; external errors are sanitized.
+- **Reproducibility:** data builds accept explicit inputs/outputs and record provenance, QC, version, hashes, and build command.
+- **Resilience:** the optional provider must never be required for pinned deterministic flows.
+- **Maintainability:** preserve one frontend, one API, offline scripts, and file-based serving artifacts.
+- **Accessibility:** target usable keyboard, text-equivalent charts, reduced motion, and sufficient contrast; formal acceptance is not yet recorded.
+
+## 8. Success evidence
+
+Targets are not results. Completion requires recorded evidence for:
+
+| Outcome | Acceptance evidence |
+| --- | --- |
+| Profile and time-series work end-to-end | Reviewed dataset/build plus HTTP/browser results |
+| Regional average included | Stable real-data response or explicit scope cut |
+| Parser reliability | Frozen labelled set and observed result |
+| Scientific anomaly behaviour | Unit boundaries plus recorded validation output, including negative results |
+| Provider resilience | Forced timeout/malformed/missing-configuration run with `rule_based` disclosure |
+| Demo readiness | Container/local and cached runs on the presentation setup |
+
+The evidence log currently contains no result rows, so none of these outcomes is verified.
+
+## 9. Constraints and dependencies
+
+- Current prerequisites are Node.js ≥22.13, Python ≥3.11, and `make`; the container uses Python 3.12.
+- A reviewed ARGO source/subset, redistribution decision, region definitions, QC policy, and shallow-water cutoff are unresolved P0 inputs.
+- The LLM provider and hosting platform are ⚪ needs verification, not confirmed dependencies.
+- The frontend contract cannot be frozen from illustrative objects; it needs reviewed real responses.
+
+## 10. Risks
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Data/QC/provenance decisions remain unresolved | Blocks all real results | Freeze a small reviewed subset and manifest before broader coverage. |
+| Frontend/backend contracts diverge | Integration rework or misleading UI | Freeze real fixtures and reconcile types together. |
+| Readiness accepts files without integrity/science checks | False operational signal | Add schema/hash/provenance checks and keep scientific acceptance separate. |
+| LLM scope distracts from deterministic data path | Core flow remains incomplete | Add provider only after deterministic HTTP success. |
+| Illustrative values are mistaken for observations | Trust failure | Keep explicit disclosures; never copy them into scientific artifacts. |
+| Evidence and fallback remain empty | Unsupported pitch/release claims | Record exact outputs and prepare sanitized cached artifacts before release. |
+
+## 11. Open decisions
+
+- [ ] Exact data source URL/access method, licence/redistribution terms, subset coverage, and dataset version.
+- [ ] Region definitions and spatial/radius rules shared by preprocessing, repository, and baselines.
+- [ ] QC policy, adjusted/raw value precedence, pressure-to-depth rule, and shallow-water cutoff.
+- [ ] Final success data variants and frontend adapter.
+- [ ] Whether suggested queries should remain absent from the accepted UI.
+- [ ] LLM provider and timeout only after the deterministic pipeline works.
+- [ ] Hosting target after the one-container build passes locally.
+
+## 12. Related documents
+
+- [Master project documentation](PROJECT_DOCUMENTATION.md)
+- [Architecture](ARCHITECTURE.md)
+- [API contract](API_CONTRACT.md)
+- [Feature status](feature.md)
+- [Roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md)
+- [Evidence rules](evidence/README.md)

@@ -1,9 +1,13 @@
 # Supplied project references
 
-The canonical supplied planning artifacts currently remain at the repository root:
+The editable supplied planning artifacts currently remain at the repository root:
 
 - `FloatChat-Lite_Project_Documentation.docx`
 - `FloatChat-Lite_Detailed_Project_Roadmap.docx`
-- their Markdown companions, when retained by the team
 
-They were intentionally not moved during the restructure because the roadmap had an active Microsoft Word lock file. Move the closed source documents into this directory in one deliberate follow-up so Word does not recreate duplicate root copies.
+Their synchronized Markdown counterparts are:
+
+- [`../FloatChat-Lite_Project_Documentation.md`](../FloatChat-Lite_Project_Documentation.md)
+- [`../FloatChat-Lite_Detailed_Project_Roadmap.md`](../FloatChat-Lite_Detailed_Project_Roadmap.md)
+
+The Markdown documentation reflects the current repository and is the developer-facing source of truth. The DOCX files are retained reference artifacts and may be stale until separately regenerated and visually reviewed. Moving or regenerating them is a deliberate follow-up; do not claim they were synchronized by Markdown-only edits.

@@ -1,72 +1,86 @@
-# FloatChat-Lite — Todo
+# FloatChat-Lite executable todo
 
-> **Last updated:** 13 August 2026. Check items off as they're completed; keep this file in sync with actual progress.
+> Last synchronized: 21 August 2026
+> Check an item only when source/artifacts and proportionate verification exist. Evidence-gated claims also require a row in `evidence/evidence-log.csv`.
 
-## Phase 1: Foundation & Data Pipeline
-- [ ] Agree on unified PRD and finalize scope with the full team
-- [ ] Set up the repo (structure, branches, team-role assignments per PRD Section 5 / prd.md)
-- [ ] Source ARGO NetCDF data from INCOIS for the Indian Ocean region (2015–2024 subset)
-- [ ] Write the NetCDF → CSV/Parquet preprocessing script (float_id, time, lat, lon, depth, temperature, salinity)
-- [ ] Run preprocessing and validate output schema against a few known profiles
-- [ ] Precompute production baselines (mean/std by region/month, full available history)
-- [ ] Precompute validation baseline (2015–2018) as a separate, non-conflated baseline set
-- [ ] **Checkpoint (hour 4):** go/no-go decision — if ingestion isn't query-ready, prepare and swap in the pre-vetted fallback subset (1–2 regions, 2 years)
-- [ ] Implement `validate_heatwave.py` (region filtering, baseline comparison, Z-score computation, CLI output)
-- [ ] Run `validate_heatwave.py` against the real preprocessed dataset
-- [ ] Record the real validation result (region, max|z|, month, flagged True/False) — no placeholder numbers
-- [ ] If not flagged: decide on fallback plan (honest reporting / widen region / different real event), time-boxed for Day 2 morning if needed
+## Completed foundation
 
-## Phase 2: Basic Chat UI Shell
-- [ ] Scaffold the React + TypeScript frontend project
-- [ ] Build the chat input box component
-- [ ] Build the suggested query chips component with the four pinned example queries
-- [ ] Build the response area layout (header, chart placeholder, map placeholder, explanation footer placeholder)
-- [ ] Stub a mock backend (or mock fetch responses) matching the agreed API contract shape
-- [ ] Wire the input box to submit a query and render the mocked response
-- [ ] Apply basic visual style (colors, fonts, spacing) per design.md's component library
+- [x] Preserve the accepted React/TypeScript/Vite frontend under `frontend/`.
+- [x] Implement illustrative local depth, SST/anomaly, salinity, and warming/trend views.
+- [x] Use Recharts and a static local Bhuvan map image; keep runtime free of external map tiles.
+- [x] Implement query submit/Enter, empty-input protection, staged loading, unsupported error, and reset.
+- [x] Define backend Pydantic request/response/error vocabulary.
+- [x] Implement liveness/readiness endpoints and safe missing-data behaviour.
+- [x] Implement the narrow deterministic grammar for four pinned phrase families.
+- [x] Implement/test confidence and z-score policy boundaries in isolation.
+- [x] Add CI, local check targets, manifest schema, artifact directories, evidence log, and container recipe.
 
-## Phase 3: Full Pipeline Integration
-- [ ] Write the LLM query-parsing prompt and integrate the chosen LLM API (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1)
-- [ ] Implement `parser_used: "llm"` tagging on successful LLM parses
-- [ ] Implement the rule-based fallback parser (city gazetteer, coordinate regex, year-range regex, keyword matching)
-- [ ] Implement `parser_used: "rule_based"` tagging and the LLM-failure/timeout fallback trigger
-- [ ] Implement `get_profile()` in the Data Layer against the real (or fallback) dataset
-- [ ] Implement `get_regional_average()` in the Data Layer
-- [ ] Implement `get_time_series()` in the Data Layer
-- [ ] Implement Z-score anomaly scoring against precomputed production baselines
-- [ ] Implement anomaly label classification (normal / mild / strong, positive/negative)
-- [ ] Implement the `data_sufficiency` calculation (profile_count, coverage_radius_km, confidence tiering: low 1–5, medium 6–20, high 21+)
-- [ ] Implement the Explainability Layer's `answer_explanation` text generation (data source, aggregation method, proxy caveats like the ≤10m SST cutoff)
-- [ ] Implement the anomaly "why" explanation text generation
-- [ ] Implement `POST /chat` endpoint wiring all of the above together
-- [ ] Implement `no_data`, `parse_error`, and `general_error` friendly error responses
-- [ ] Replace the frontend's mocked backend calls with real `POST /chat` requests
-- [ ] Test all three query types (profile, regional_average, time_series) end-to-end with real data
+## P0 — next: scientific data source of truth
 
-## Phase 4: UX Polish & Explainability Surfacing
-- [ ] Polish Plotly.js chart rendering (depth profiles and time series) for readability on a projector
-- [ ] Polish Leaflet map rendering (location pin styling, zoom defaults)
-- [ ] Build the `AnomalyBadge` component with full confidence-aware logic (suppress on low, qualify on medium, full weight on high)
-- [ ] Style the explanation footer and data-sufficiency line per design.md
-- [ ] Implement the degraded-mode disclosure line for `parser_used == "rule_based"` responses
-- [ ] Style all four error states (`no_data`, `parse_error`, `general_error`, empty state) as friendly, non-technical messages
-- [ ] Run the three pinned demo queries live and verify polished output end-to-end (chart, map, badge, explanation, confidence)
+- [ ] Freeze the exact ARGO source URL/access method and review licence/redistribution terms.
+- [ ] Freeze the subset coverage needed for Mumbai profile/time-series first.
+- [ ] Freeze region/radius definitions, QC policy, adjusted/raw precedence, depth conversion, and shallow-water proxy cutoff.
+- [ ] Implement `scripts/preprocess_argo.py` with explicit paths, deterministic output, validation, and non-zero failure.
+- [ ] Manually inspect representative processed profiles and record the result.
+- [ ] Write profile Parquet and a draft manifest with provenance, coverage, version, command, and hashes.
+- [ ] Implement manifest schema/hash/integrity validation; do not rely only on file existence.
+- [ ] Implement `scripts/build_baselines.py` with separate production and validation artifacts.
+- [ ] Verify production/validation periods and artifacts cannot be interchanged.
 
-## Phase 5: Hardening, Testing & Demo Rehearsal
-- [ ] Write the 20–25 query LLM parser eval set (pinned phrasings, city names, missing dates, ambiguous parameters, malformed input)
-- [ ] Run the eval set and record the real accuracy number
-- [ ] End-to-end test all three pinned demo queries repeatedly for reliability
-- [ ] End-to-end test all three error paths (`no_data`, `parse_error`, `general_error`)
-- [ ] Capture cached fallback (screenshots and/or precomputed JSON) for the three pinned demo queries
-- [ ] Finalize pitch slides using only validated numbers (heatwave result from Phase 1, parser accuracy from this phase)
-- [ ] Rehearse the full demo end-to-end (target: 20+ full run-throughs)
-- [ ] Final check: confirm no placeholder numbers or unverified claims remain anywhere in the pitch deck
+## P0 — repository and API success path
 
-## Backlog / Unscheduled
-- [ ] Multilingual support (Hindi, Marathi, Tamil, etc.)
-- [ ] INCOIS Potential Fishing Zone / wave height data integration
-- [ ] IMD cyclone track / ocean state forecast integration
-- [ ] Multi-turn conversational memory / follow-up questions
-- [ ] Production deployment, INCOIS/VEDAS integration, mobile/WhatsApp bot
-- [ ] Fine-tuned LLM parser (in place of prompted pre-trained model)
-- [ ] Migration off CSV/Parquet to a real database, if usage scale requires it
+- [ ] Implement Parquet schema validation and prepared-data loading.
+- [ ] Implement spatial, date, depth, parameter, and acceptable-observation filters.
+- [ ] Implement `profile` query and verify one manually checked real result.
+- [ ] Implement `time_series` query and shallow-water proxy caveat.
+- [ ] Implement profile count, coverage text, and confidence from real matches.
+- [ ] Connect production-baseline anomaly scoring; skip insufficient/zero-std cases.
+- [ ] Implement deterministic explanation composition from result metadata.
+- [ ] Return validated `ChatResponse` success bodies.
+- [ ] Emit `404 no_data` for valid queries with no acceptable matches.
+- [ ] Decide and test the Pydantic request-validation error policy.
+- [ ] Freeze reviewed real response fixtures and chart-data variants.
+
+## P1 — accepted frontend integration
+
+- [ ] Reconcile `OceanResponse` and `ChatResponse` without importing illustrative field semantics into the API.
+- [ ] Replace local runtime resolution with a typed `/chat` adapter while preserving UI behaviour.
+- [ ] Render distinct parse, no-data, general, and request-validation failures.
+- [ ] Render a subtle `rule_based` parser disclosure.
+- [ ] Ensure source/version, method, selection, dates, profile count, confidence, and proxy caveats are visible.
+- [ ] Verify keyboard, narrow-screen, desktop, and projector behaviour; record evidence.
+- [ ] Decide whether suggested-query chips remain omitted or are explicitly added.
+
+## P1 — evidence, resilience, and release
+
+- [ ] Implement `scripts/validate_heatwave.py` (or another frozen known-event evaluation) and record the exact result.
+- [ ] Run API success/error/trace-safety checks against the release dataset.
+- [ ] Build/start the container with ready data and run health/pinned smoke checks.
+- [ ] Capture sanitized cached JSON/screenshots with dataset/build version and origin.
+- [ ] Test offline fallback and failure recovery on the presentation machine.
+- [ ] Rehearse the complete demo and record actual passes/failures.
+- [ ] Audit the pitch for claims that lack evidence rows.
+
+## P2 — optional after the deterministic core
+
+- [ ] Decide whether one LLM provider is needed and verify quota/latency/secret handling.
+- [ ] Add LLM settings and one strict validated provider adapter.
+- [ ] Force timeout, malformed output, missing config, and quota failure; verify deterministic fallback.
+- [ ] Implement a frozen labelled parser evaluation and record the result.
+- [ ] Implement `regional_average` only if the first two real flows and coverage are stable.
+- [ ] Strengthen readiness to report integrity separately from scientific validation.
+
+## Blocked
+
+- Frontend/API success integration is blocked until a reviewed real response fixture exists.
+- Real anomaly results are blocked until production baselines exist.
+- Scientific validation is blocked until separate validation artifacts exist.
+- Provider evaluation is blocked until the deterministic end-to-end path and provider decision exist.
+- Release/demo acceptance is blocked until real data, integration, and evidence artifacts exist.
+
+## Long-term / unscheduled
+
+- [ ] Evaluate multilingual support only after a verified user need.
+- [ ] Evaluate PFZ, wave-height, cyclone, or forecast domains as separate scoped projects.
+- [ ] Evaluate multi-turn memory, authentication, persistence, mobile, or WhatsApp only after core acceptance.
+- [ ] Consider a database only if measured scale/update requirements exceed file-based artifacts.

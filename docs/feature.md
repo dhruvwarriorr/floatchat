@@ -1,526 +1,350 @@
-# FloatChat-Lite — Feature List
+# FloatChat-Lite feature status and behaviour
 
-> **Status:** Draft | **Last updated:** 13 August 2026
+> Last synchronized with source: 21 August 2026
 
-## Feature Summary
+## Status legend
 
-| # | Feature | Category | Phase | Priority | Status |
-|---|---|---|---|---|---|
-| 1 | ARGO Data Ingestion & Preprocessing | Data Pipeline | Phase 1 | Must-have | Planned |
-| 2 | Anomaly Baseline Precomputation | Data Pipeline | Phase 1 | Must-have | Planned |
-| 3 | Heatwave Validation Check | Validation | Phase 1 | Must-have | Planned |
-| 4 | Chat UI Shell | Frontend | Phase 2 | Must-have | Planned |
-| 5 | Suggested Query Chips | Frontend | Phase 2 | Should-have | Planned |
-| 6 | Natural Language Query Parsing (LLM) | Query Parsing | Phase 3 | Must-have | Planned |
-| 7 | Rule-Based Fallback Parser | Query Parsing | Phase 3 | Must-have | Planned |
-| 8 | Profile Query (Depth Profile) | Data Retrieval | Phase 3 | Must-have | Planned |
-| 9 | Regional Average Query | Data Retrieval | Phase 3 | Must-have | Planned |
-| 10 | Time-Series Query | Data Retrieval | Phase 3 | Must-have | Planned |
-| 11 | Anomaly Detection (Z-score Scoring) | Anomaly Detection | Phase 3 | Must-have | Planned |
-| 12 | Data Sufficiency Indicator | Explainability | Phase 3 | Must-have | Planned |
-| 13 | Answer Explainability Text | Explainability | Phase 3 | Must-have | Planned |
-| 14 | Friendly Error Handling | Reliability | Phase 3 | Must-have | Planned |
-| 15 | Confidence-Aware Anomaly Badge | Frontend / Explainability | Phase 4 | Must-have | Planned |
-| 16 | Degraded-Mode Disclosure | Frontend | Phase 4 | Should-have | Planned |
-| 17 | LLM Parser Eval Set | QA | Phase 5 | Should-have | Planned |
-| 18 | Cached Demo Fallback | Reliability | Phase 5 | Must-have | Planned |
+- ✅ Implemented: present in current source for its stated scope
+- 🟡 Partially implemented: useful foundation exists, but the feature is not complete or integrated
+- 🔵 In development: active work is explicitly evidenced
+- 🟠 Planned: accepted scope with no implementation
+- 🔴 Blocked: cannot complete until a prerequisite is resolved
+- ⚪ Needs verification: artifact or acceptance evidence is missing
 
-*Priority: Must-have / Should-have / Nice-to-have. Status: Planned / In progress / Done.*
+No feature is labelled 🔵 because the repository does not prove who is actively working on it.
 
----
+## Summary
 
-## 1. ARGO Data Ingestion & Preprocessing
-**Category:** Data Pipeline
-**Phase:** Phase 1
-**Priority:** Must-have
+| Feature | Status | Current state | Remaining work |
+| --- | --- | --- | --- |
+| Illustrative question-and-result UI | ✅ | Four local flows, loading, result, error, reset, charts, static map, confidence, explanations | Preserve during API integration; keep values illustrative until replaced by reviewed fixtures. |
+| Scientific preprocessing and manifest | 🔴 | Directories and manifest schema only | Freeze source/QC/subset; implement deterministic NetCDF-to-Parquet build and integrity checks. |
+| Production/validation baselines | 🔴 | Separate directories and policy documented | Implement builder and versioned artifacts. |
+| Deterministic query parser | ✅ narrow | Four pinned patterns; years/months; `rule_based` tag | Add only grammar needed by frozen queries; test ambiguity and malformed input. |
+| Optional LLM parser/fallback | 🟠 | Enum and environment placeholders only | Choose one provider, settings, schema validation, timeout, fallback, and forced-failure evidence. |
+| Scientific repository queries | 🔴 | Readiness check/refusal boundary | Implement profile, time-series, then regional average against reviewed Parquet. |
+| Anomaly/confidence policy | 🟡 | Backend function/tests and analogous frontend presentation | Connect to production baselines and real counts; validate scientifically. |
+| Explanation and provenance response | 🟡 | Illustrative frontend copy and backend fields | Implement real template/service and complete required metadata. |
+| Typed errors and health | 🟡 | Liveness/readiness, parse/general errors | Implement success, `no_data`, normalised request validation, integrity-aware readiness. |
+| Frontend/API integration | 🔴 | No API client; incompatible types | Freeze real fixtures and add a typed adapter without redesigning the UI. |
+| Container/deployment | 🟡 | Dockerfile/Compose recipe | Run with ready data, smoke-test, choose hosting, record evidence. |
+| Evaluation/cached demo/rehearsal | 🟠 | Empty evidence log and placeholder directories | Build scripts, record results, sanitize cache, projector-test, rehearse. |
 
-**What it does:**
-Converts raw ARGO NetCDF files from INCOIS into query-able CSV/Parquet tables of temperature and salinity profiles.
+## 1. Illustrative question-and-result UI
 
-**User story:**
-As any user, I want the system to have real ARGO data ready before I ask a question, so that my query returns an actual answer instead of an error.
+### Purpose
 
-**How it works:**
-1. Trigger: run offline, before the live demo, as a one-time data-prep script.
-2. Logic: load NetCDF files for the Indian Ocean region (2015–2024 subset), extract `float_id`, `time`, `lat`, `lon`, `depth`, `temperature`, `salinity`, and write to Parquet/CSV.
-3. Result: a preprocessed dataset the Data Layer can query directly without touching NetCDF at request time.
+Demonstrate how a user can ask a supported Indian Ocean question and read a visual, confidence-aware explanation.
 
-**Inputs:** Raw ARGO NetCDF files (INCOIS FTP/WWW).
+### User flow
 
-**Outputs:** Preprocessed Parquet/CSV files consumed by `get_profile()`, `get_regional_average()`, `get_time_series()`.
+The user types a question and submits. A staged local loading sequence runs, a phrase resolver selects one of four bundled responses, and the app renders metadata, an insight, chart or regional value, static map context, confidence, optional anomaly/trend context, and preparation notes. Unsupported text shows one friendly error; reset returns to the input.
 
-**Edge cases & error handling:**
-- Edge case: ingestion not query-ready by Day 1, hour 4 → behavior: switch to a small pre-vetted fallback subset (1–2 regions, 2 years), clearly labeled internally as "fallback subset," decided at the hour-4 checkpoint.
+### Technical implementation
 
-**Dependencies:** None (first step in the pipeline).
+- React/TypeScript/Vite in `frontend/`.
+- Local resolution and data in `frontend/src/data/oceanResponses.ts`.
+- Recharts for charts; static local Bhuvan image for geographic context.
+- No API call, external data, authentication, database, or external map tiles.
 
----
+### Dependencies
 
-## 2. Anomaly Baseline Precomputation
-**Category:** Data Pipeline
-**Phase:** Phase 1
-**Priority:** Must-have
+Local assets and bundled typed response objects only.
 
-**What it does:**
-Computes and stores mean/standard-deviation climatology baselines by region and month, split into two distinct baseline sets: a validation baseline (2015–2018) and a production baseline (full available history).
+### Current status
 
-**User story:**
-As a researcher, I want anomaly flags to be based on a solid historical baseline, so that "unusual" actually means something statistically.
+✅ Implemented for illustrative flows. It is not a real-data feature.
 
-**How it works:**
-1. Trigger: run offline immediately after Feature 1 completes.
-2. Logic: group profiles by region and month; compute mean, std, and profile count separately for the 2015–2018 validation window and the full-history production window; persist as a baseline table.
-3. Result: two clearly separated baseline sets ready for anomaly scoring — never conflated with each other.
+### Remaining work
 
-**Inputs:** Preprocessed ARGO dataset (Feature 1).
+Preserve its behaviour while replacing the local runtime source with reviewed API responses. Decide explicitly whether to add suggested chips; they are absent today.
 
-**Outputs:** Climatology baseline table (region × month × baseline_type → mean, std, n).
+## 2. Scientific preprocessing and manifest
 
-**Edge cases & error handling:**
-- Edge case: fewer than 5 profiles in a region/month → behavior: baseline for that cell is marked insufficient and anomaly scoring for it returns low confidence / suppressed badge (see Feature 15).
+### Purpose
 
-**Dependencies:** Feature 1 (ARGO Data Ingestion & Preprocessing).
+Convert reviewed ARGO NetCDF inputs into query-ready, reproducible Parquet artifacts without doing heavy scientific work during requests.
 
----
+### User flow
 
-## 3. Heatwave Validation Check
-**Category:** Validation
-**Phase:** Phase 1
-**Priority:** Must-have
+No direct user interaction. A data owner runs an explicit offline command before release.
 
-**What it does:**
-Tests whether the anomaly model correctly flags the documented 2019 Indian Ocean marine heatwave, using `validate_heatwave.py`, and records the real result for use in the pitch.
+### Technical implementation
 
-**User story:**
-As a judge, I want to see that the anomaly model has been tested against a real, known event, so that I can trust the "unusual" flag isn't arbitrary.
+The intended script validates selected variables, adjusted/raw precedence, QC flags, time/coordinates/depth, duplicates, and missing values; writes profile Parquet; and creates a manifest with provenance, version, build command, coverage, and hashes.
 
-**How it works:**
-1. Trigger: run manually by Member 3 once baselines (Feature 2) are ready, Day 1 by hour 5.
-2. Logic: for each defined region, compute the max |Z-score| in 2019 against the validation baseline (2015–2018); flag as anomalous if max |Z| ≥ 1.5.
-3. Result: a printed, recorded outcome per region — either a real flagged Z-score to cite in the pitch, or an honest "not flagged" result requiring a fallback plan (region widening, different event, or honest negative reporting).
+### Dependencies
 
-**Inputs:** Preprocessed ARGO dataset, validation baseline (2015–2018).
+Frozen source/access/licence decision, subset, QC policy, schema, region definitions, and local scientific Python dependencies.
 
-**Outputs:** Recorded validation result (region, max|z|, month, flagged True/False) — never a placeholder number.
+### Current status
 
-**Edge cases & error handling:**
-- Edge case: model does not flag the 2019 event as anomalous → behavior: report honestly, widen the region, or pick a different real, checkable event — time-boxed to a maximum of 1 hour on Day 2 morning.
-- Error case: insufficient baseline data for a region → behavior: that region is marked "cannot validate" and excluded from pitch claims.
+🔴 Blocked. `data/manifest.schema.json` and directories exist, but no preprocessing script, manifest, or scientific artifact exists.
 
-**Dependencies:** Feature 2 (Anomaly Baseline Precomputation).
+### Remaining work
 
----
+Resolve the data decisions, implement `scripts/preprocess_argo.py`, manually review sample profiles, validate hashes/schema, and record the build.
 
-## 4. Chat UI Shell
-**Category:** Frontend
-**Phase:** Phase 2
-**Priority:** Must-have
+## 3. Production and validation baselines
 
-**What it does:**
-Provides the single chat panel — input box and response area — that is the entire user interface for FloatChat-Lite.
+### Purpose
 
-**User story:**
-As any user, I want a simple chat box to type my question into, so that I don't need to learn a new interface.
+Provide transparent monthly/region/parameter mean, standard deviation, and count while keeping serving and validation evidence independent.
 
-**How it works:**
-1. Trigger: page load.
-2. Logic: renders an empty input box and a response area that stays empty until a query is submitted.
-3. Result: user can type a query and submit it (Enter key or a submit button).
+### User flow
 
-**Inputs:** User keystrokes / submit action.
+No direct interaction. Baselines are built offline from the reviewed profile artifact.
 
-**Outputs:** A submitted query string sent to `POST /chat` (once Feature 6/7 are wired in Phase 3).
+### Technical implementation
 
-**Edge cases & error handling:**
-- Edge case: empty submission → behavior: input is not submitted; no request sent.
+Planned `build_baselines.py` outputs separately versioned production and validation artifacts. Live queries read only production baselines; validation scripts read only validation baselines.
 
-**Dependencies:** None (can be built against mock data initially, per Phase 2 scope).
+### Dependencies
 
----
+Feature 2 plus frozen regions, parameters, periods, sufficiency policy, and dataset version.
 
-## 5. Suggested Query Chips
-**Category:** Frontend
-**Phase:** Phase 2
-**Priority:** Should-have
+### Current status
 
-**What it does:**
-Shows four example queries below the chat input that a user can click to quickly try the system.
+🔴 Blocked by absent data/preprocessing. Separate directories and manifest kinds exist.
 
-**User story:**
-As a first-time user, I want example questions I can just click, so that I don't face a blank box with no idea what to ask.
+### Remaining work
 
-**How it works:**
-1. Trigger: page load (always visible in the empty state).
-2. Logic: each chip contains one of the four pinned example queries; clicking a chip populates (and may auto-submit) the input box.
-3. Result: the query is submitted through the same flow as a manually typed one.
+Implement the builder, verify period separation and zero/low-sample cells, and record artifacts/hashes.
 
-**Inputs:** User click.
+## 4. Query parsing
 
-**Outputs:** Populated/submitted query in the Chat UI Shell (Feature 4).
+### Purpose
 
-**Edge cases & error handling:**
-- None beyond the standard query flow — chips submit exactly like typed queries.
+Map supported natural-language questions into validated query parameters without making the demo depend on an external provider.
 
-**Dependencies:** Feature 4 (Chat UI Shell).
+### User flow
 
----
+An API caller submits text. Supported pinned wording becomes a profile, regional-average, or time-series request; unsupported wording receives `parse_error`.
 
-## 6. Natural Language Query Parsing (LLM)
-**Category:** Query Parsing
-**Phase:** Phase 3
-**Priority:** Must-have
+### Technical implementation
 
-**What it does:**
-Converts a free-text question into structured parameters (`query_type`, `lat`, `lon`, `parameter`, `date_from`, `date_to`, `include_anomaly`) using a direct LLM API call.
+`parse_rule_based()` recognizes four narrow phrase families, full English month names, and one/two years. It returns Pydantic `QueryParams` with `parser_used=rule_based`.
 
-**User story:**
-As a forecaster, I want to ask "Show temperature profile near Mumbai in July 2024" in plain English, so that I don't need to know coordinates or query syntax.
+### Dependencies
 
-**How it works:**
-1. Trigger: backend receives a query via `POST /chat`.
-2. Logic: sends the query text to the LLM API with a fixed extraction prompt; expects a JSON object back with the structured fields.
-3. Result: structured parameters passed to the Data Layer; response tagged `parser_used: "llm"`.
+Backend models only.
 
-**Inputs:** Raw query string.
+### Current status
 
-**Outputs:** Structured query object (`query_type`, `lat`, `lon`, `parameter`, `date_from`, `date_to`, `include_anomaly`).
+✅ Implemented for the frozen narrow grammar and covered by backend tests. Older city-gazetteer/general-coordinate claims were incorrect.
 
-**Edge cases & error handling:**
-- Error case: LLM call fails or times out → behavior: control passes to Feature 7 (Rule-Based Fallback Parser).
-- Edge case: LLM returns malformed JSON → behavior: treated as a parse failure, falls back to Feature 7.
+### Remaining work
 
-**Dependencies:** External LLM API (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1).
+Freeze the final grammar after real data coverage is known. Add ambiguity, reversed-year, coordinate, missing-date, and malformed-input cases only where supported.
 
----
+## 5. Optional LLM parser with deterministic fallback
 
-## 7. Rule-Based Fallback Parser
-**Category:** Query Parsing
-**Phase:** Phase 3
-**Priority:** Must-have
+### Purpose
 
-**What it does:**
-Deterministically parses a query using a small city gazetteer, coordinate regex, and keyword matching, when the LLM parser is unavailable.
+Broaden accepted phrasing while preserving deterministic operation during provider failure.
 
-**User story:**
-As any user, I want my query to still get an answer even if the AI parser is down, so that a single point of failure doesn't break the whole demo.
+### User flow
 
-**How it works:**
-1. Trigger: Feature 6 fails or times out.
-2. Logic: matches lat/lon patterns, checks the query against a fixed city gazetteer (Mumbai, Chennai, Kolkata, Kochi, Visakhapatnam, Goa), extracts year/year-range via regex, and matches keywords for query type, parameter, and anomaly interest.
-3. Result: structured parameters passed to the Data Layer; response tagged `parser_used: "rule_based"`, which triggers Feature 16 (Degraded-Mode Disclosure) on the frontend.
+The backend may ask one provider for a strict parse. Timeout, malformed output, quota failure, or missing configuration must fall back to the deterministic parser and disclose `rule_based`.
 
-**Inputs:** Raw query string.
+### Technical implementation
 
-**Outputs:** Structured query object, same shape as Feature 6's output.
+No adapter exists. `.env.example` lists model/key/timeout variables, but backend `Settings` does not read them.
 
-**Edge cases & error handling:**
-- Edge case: no city or coordinates found in the query → behavior: `lat`/`lon` remain null, which downstream leads to a `parse_error` response.
+### Dependencies
 
-**Dependencies:** None external (pure Python, no network calls, by design).
+Stable query schema, working deterministic end-to-end flow, one provider decision, server-side secret configuration, and a labelled evaluation set.
 
----
+### Current status
 
-## 8. Profile Query (Depth Profile)
-**Category:** Data Retrieval
-**Phase:** Phase 3
-**Priority:** Must-have
+🟠 Planned.
 
-**What it does:**
-Returns a depth-vs-value profile (temperature or salinity) for a single location and time window.
+### Remaining work
 
-**User story:**
-As a forecaster, I want to see a temperature profile by depth near a location, so that I get a first read on ocean conditions.
+Implement one adapter with strict validation and timeout, add failure tests, measure the frozen set, and record exact evidence. Do not add multiple providers or LangChain.
 
-**How it works:**
-1. Trigger: `query_type == "profile"` from Feature 6 or 7.
-2. Logic: filters the preprocessed dataset (Feature 1) to profiles within a fixed coverage radius of `lat`/`lon` and within the date range; returns depth vs. value pairs.
-3. Result: chart-ready `data` object plus `data_sufficiency` (Feature 12) returned in the response.
+## 6. Scientific repository queries
 
-**Inputs:** `lat`, `lon`, `parameter`, `date_from`, `date_to`.
+### Purpose
 
-**Outputs:** `data.depth` / `data.value` arrays; `data_sufficiency` object.
+Return profile, time-series, and—only if stable—regional-average results from reviewed prepared data.
 
-**Edge cases & error handling:**
-- Edge case: zero matching profiles → behavior: `no_data` error response (Feature 14).
+### User flow
 
-**Dependencies:** Feature 1 (ARGO Data Ingestion & Preprocessing); Feature 6/7 (parsers).
+A parsed request filters observations by supported location/region, time, depth, and parameter. No matches produce `no_data`; matches produce chart-ready data and sufficiency context.
 
----
+### Technical implementation
 
-## 9. Regional Average Query
-**Category:** Data Retrieval
-**Phase:** Phase 3
-**Priority:** Must-have
+`DataRepository.readiness()` currently checks manifest status and declared file existence. `query()` always raises `DataUnavailable`; it performs no Parquet read, filter, aggregation, or no-data classification.
 
-**What it does:**
-Returns an averaged value (e.g., average salinity) across a region and time window.
+### Dependencies
 
-**User story:**
-As a student, I want to ask for the average salinity in the Bay of Bengal in 2023, so that I get a defensible regional figure without manual aggregation.
+Features 2–4, frozen spatial rules, chart-data contract, and deterministic fixtures.
 
-**How it works:**
-1. Trigger: `query_type == "regional_average"` from Feature 6 or 7.
-2. Logic: filters the dataset to the specified region and date range; computes the mean of the requested parameter across all matching profiles.
-3. Result: a single aggregated value plus `data_sufficiency` (Feature 12) returned in the response.
+### Current status
 
-**Inputs:** Region bounds (or `lat`/`lon` + radius), `parameter`, `date_from`, `date_to`.
+🔴 Blocked by missing scientific artifacts and repository implementation.
 
-**Outputs:** Aggregated value; `data_sufficiency` object.
+### Remaining work
 
-**Edge cases & error handling:**
-- Edge case: zero matching profiles → behavior: `no_data` error response (Feature 14).
+Implement profile first, then time-series, then regional average if stable. Add schema/hash checks, spatial/time/depth tests, real fixture review, and provenance output.
 
-**Dependencies:** Feature 1; Feature 6/7 (parsers).
+## 7. Anomaly and data sufficiency
 
----
+### Purpose
 
-## 10. Time-Series Query
-**Category:** Data Retrieval
-**Phase:** Phase 3
-**Priority:** Must-have
+Explain how unusual a supported aggregate is without overstating thin evidence.
 
-**What it does:**
-Returns a time-ordered series of averaged values (e.g., monthly SST) for a location or region across a date range.
+### User flow
 
-**User story:**
-As a researcher, I want to plot an SST time series at a coordinate from 2015–2024, so that I can see how it has changed over time.
+When anomaly intent is supported, the system compares a current value with the matching production baseline. Low confidence suppresses severity; medium is provisional; high may show full severity.
 
-**How it works:**
-1. Trigger: `query_type == "time_series"` from Feature 6 or 7.
-2. Logic: filters the dataset to the location/region and date range, groups by month, computes the mean value per month.
-3. Result: `data.time` / `data.value` arrays plus `data_sufficiency` (Feature 12) returned in the response; if `include_anomaly` is true, also triggers Feature 11.
+### Technical implementation
 
-**Inputs:** `lat`, `lon`, `parameter`, `date_from`, `date_to`, `include_anomaly`.
+Backend `score_anomaly()` implements z-score labels at absolute thresholds 1.5 and 2.5, returns no score for non-positive standard deviation or zero profiles, and uses confidence tiers 1–5/6–20/21+. Frontend status/confidence components mirror the presentation policy for illustrative data.
 
-**Outputs:** Time-series `data` object; `data_sufficiency` object.
+### Dependencies
 
-**Edge cases & error handling:**
-- Edge case: zero matching profiles → behavior: `no_data` error response (Feature 14).
+Real query result, profile count, matching production baseline, and exact baseline period.
 
-**Dependencies:** Feature 1; Feature 6/7 (parsers).
+### Current status
 
----
+🟡 Partially implemented and unit-tested in isolation. It is not connected to `/chat` or scientifically validated.
 
-## 11. Anomaly Detection (Z-score Scoring)
-**Category:** Anomaly Detection
-**Phase:** Phase 3
-**Priority:** Must-have
+### Remaining work
 
-**What it does:**
-Scores the current queried value against the precomputed production climatology baseline and classifies it as normal, mild, or strong (positive/negative) anomaly.
+Connect only to production baselines, define insufficient baseline `n`, verify negative and sparse cases, and record validation output without changing thresholds to force a result.
 
-**User story:**
-As a researcher, I want the system to tell me if a value is unusual, so that I can quickly spot anomalous periods worth investigating.
+## 8. Explanation and provenance
 
-**How it works:**
-1. Trigger: `include_anomaly == true`, typically alongside a time-series query (Feature 10).
-2. Logic: computes `z_score = (current_value - baseline_mean) / baseline_std` using the production baseline (Feature 2); classifies as `normal` (|z| < 1.5), `mild_positive`/`mild_negative` (1.5 ≤ |z| < 2.5), or `strong_positive`/`strong_negative` (|z| ≥ 2.5).
-3. Result: `anomaly` object (score, label, baseline period/mean/std, explanation) added to the response.
+### Purpose
 
-**Inputs:** Current aggregated value, region, month.
+Let a user understand what was selected, how it was aggregated, how much evidence supports it, and what caveats apply.
 
-**Outputs:** `anomaly` object in the response JSON.
+### User flow
 
-**Edge cases & error handling:**
-- Edge case: production baseline for that region/month has insufficient data (< 5 profiles) → behavior: anomaly scoring is skipped or returned with low confidence, which suppresses the colored badge on the frontend (Feature 15).
+The result shows source/version, aggregation, dates, radius/region, profile count, confidence, parser, anomaly baseline, and shallow-water proxy caveat where relevant.
 
-**Dependencies:** Feature 2 (Anomaly Baseline Precomputation); Feature 10 (Time-Series Query) as the typical trigger.
+### Technical implementation
 
----
+Illustrative preparation/explanation content exists in the frontend. `ChatResponse` contains `answer_explanation`, `data_sufficiency`, `parser_used`, and `source`, but no backend explanation composer or reachable success response exists.
 
-## 12. Data Sufficiency Indicator
-**Category:** Explainability
-**Phase:** Phase 3
-**Priority:** Must-have
+### Dependencies
 
-**What it does:**
-Reports how many ARGO profiles back a given answer and assigns a confidence level (low/medium/high), so users know whether to treat a result as precise or merely indicative.
+Features 5–7 and reviewed terminology.
 
-**User story:**
-As a policy analyst, I want to know how much data backs an answer, so that I know whether to treat it as precise or merely indicative.
+### Current status
 
-**How it works:**
-1. Trigger: every successful data-backed response (Features 8, 9, 10).
-2. Logic: counts matching profiles within the coverage radius; assigns `low` (1–5 profiles), `medium` (6–20), or `high` (21+) confidence.
-3. Result: `data_sufficiency` object (`profile_count`, `coverage_radius_km`, `confidence`) included in every data response, and rendered as a line under the chart on the frontend.
+🟡 Partially implemented as UI demonstration and contract vocabulary.
 
-**Inputs:** Matching profile count from the data retrieval step.
+### Remaining work
 
-**Outputs:** `data_sufficiency` object in the response JSON.
+Implement deterministic templates from real metadata, prevent invented values, add contract tests, and render parser disclosure.
 
-**Edge cases & error handling:**
-- Edge case: `confidence == "low"` and an anomaly was also computed → behavior: the frontend suppresses the colored anomaly badge (Feature 15) regardless of the anomaly label.
+## 9. Errors and health
 
-**Dependencies:** Features 8, 9, or 10 (whichever query type ran).
+### Purpose
 
----
+Fail safely and distinguish process health, data readiness, unsupported input, no matches, and internal failure.
 
-## 13. Answer Explainability Text
-**Category:** Explainability
-**Phase:** Phase 3
-**Priority:** Must-have
+### User flow
 
-**What it does:**
-Generates a plain-language description of the data source, aggregation method, and any proxy assumptions behind an answer (e.g., the SST-from-shallowest-measurement proxy).
+API callers can check liveness/readiness. Unsupported query text receives a friendly project error. The frontend currently shows only a generic unrecognized-question state.
 
-**User story:**
-As a policy analyst, I want every answer to explain its baseline and method in plain language, so that I can trust and cite the result without needing a statistics background.
+### Technical implementation
 
-**How it works:**
-1. Trigger: every successful data-backed response.
-2. Logic: assembles a fixed-template explanation string referencing the data source (INCOIS ARGO), the aggregation method used (e.g., "monthly mean of all profiles within 50km"), and any proxy caveats (e.g., the ≤10m SST depth cutoff).
-3. Result: `answer_explanation` string included in the response and rendered in the explanation footer.
+`/health/live`, `/health/ready`, `422 parse_error`, and `503 general_error` are implemented. `404 no_data` is modelled but unreachable. Standard Pydantic request errors are not normalized.
 
-**Inputs:** Query parameters, aggregation method used, any proxy flags triggered.
+### Dependencies
 
-**Outputs:** `answer_explanation` string in the response JSON.
+Repository query outcomes and frontend/API integration for the remaining states.
 
-**Edge cases & error handling:**
-- None beyond standard template assembly — this feature does not fail independently of the underlying data retrieval.
+### Current status
 
-**Dependencies:** Features 8, 9, or 10 (whichever query type ran); Feature 11 if an anomaly was also computed (adds the anomaly-specific "why" text).
+🟡 Partially implemented.
 
----
+### Remaining work
 
-## 14. Friendly Error Handling
-**Category:** Reliability
-**Phase:** Phase 3
-**Priority:** Must-have
+Add integrity-aware readiness, success/no-data mapping, normalized validation decision, forced general-error test, and distinct accessible frontend states.
 
-**What it does:**
-Converts every backend failure mode into one of three friendly, specific messages (`no_data`, `parse_error`, `general_error`) instead of a raw error.
+## 10. Frontend/API integration
 
-**User story:**
-As any user, I want a friendly message instead of a raw error when my query can't be parsed or no data exists, so that I'm not stuck guessing what went wrong.
+### Purpose
 
-**How it works:**
-1. Trigger: any failure point in the pipeline (both parsers fail, zero matching data, or an unexpected exception).
-2. Logic: catches the failure type and maps it to the appropriate message: `parse_error` (neither parser could understand the query), `no_data` (parsed fine but no matching ARGO data), `general_error` (unexpected backend failure).
-3. Result: a friendly, specific message rendered in the response area in place of the chart.
+Make the accepted interface render validated real responses through the single backend boundary.
 
-**Inputs:** Failure signal from any upstream component (parsers, Data Layer, Anomaly Model).
+### User flow
 
-**Outputs:** One of three typed error responses, rendered conversationally on the frontend.
+The browser submits to `/chat`, waits, and renders success or the typed error returned by the backend.
 
-**Edge cases & error handling:**
-- Edge case: an unexpected exception type not anticipated by the mapping → behavior: defaults to `general_error`, never exposes a stack trace.
+### Technical implementation
 
-**Dependencies:** Features 6/7 (parsers), Features 8/9/10 (data retrieval).
+No API client exists. `OceanResponse` and `ChatResponse` differ, so integration requires a frozen backend data union or a narrow adapter.
 
----
+### Dependencies
 
-## 15. Confidence-Aware Anomaly Badge
-**Category:** Frontend / Explainability
-**Phase:** Phase 4
-**Priority:** Must-have
+One real repository query, reviewed response fixtures, success contract tests, and feature 9 error shapes.
 
-**What it does:**
-Renders the anomaly severity as a colored badge, but suppresses the color and shows a neutral "not enough data to assess" state whenever `data_sufficiency.confidence` is low.
+### Current status
 
-**User story:**
-As a researcher, I want anomaly flags to be honest about how much data backs them, so that I don't over-trust a flag based on very little data.
+🔴 Blocked by the data/repository/contract path.
 
-**How it works:**
-1. Trigger: response includes both an `anomaly` object and a `data_sufficiency` object.
-2. Logic: if `confidence == "low"`, render a neutral gray badge with "Not enough data to assess (N profiles within Xkm)," overriding the anomaly label entirely; if `"medium"`, render the colored badge with a "(provisional — moderate confidence)" qualifier; if `"high"`, render the colored badge at full weight.
-3. Result: a badge component next to the chart that never overstates confidence on thin data.
+### Remaining work
 
-**Inputs:** `anomaly.label`, `data_sufficiency.confidence`.
+Freeze fixtures, reconcile types, add the adapter, preserve UI behaviour, and run browser/projector acceptance.
 
-**Outputs:** Rendered badge UI element (color, icon, text).
+## 11. Container and deployment
 
-**Edge cases & error handling:**
-- Edge case: no `anomaly` object present in the response (query didn't request anomaly assessment) → behavior: badge component renders nothing.
+### Purpose
 
-**Dependencies:** Feature 11 (Anomaly Detection); Feature 12 (Data Sufficiency Indicator).
+Provide one reproducible artifact that serves the API and built frontend with read-only data.
 
----
+### User flow
 
-## 16. Degraded-Mode Disclosure
-**Category:** Frontend
-**Phase:** Phase 4
-**Priority:** Should-have
+Operators build/start the container; users open the served application.
 
-**What it does:**
-Shows a subtle line under the response when the query was parsed by the rule-based fallback instead of the LLM, so the "explainable/trustworthy" framing stays honest even in a degraded mode.
+### Technical implementation
 
-**User story:**
-As any user, I want to know if my query was parsed in a simplified fallback mode, so that I understand why the result might be less precise and can rephrase if needed.
+A multi-stage Dockerfile and Compose service exist. FastAPI mounts static build output when present. No confirmed hosting target or recorded container run exists.
 
-**How it works:**
-1. Trigger: response has `parser_used == "rule_based"`.
-2. Logic: renders a non-alarming line under the response: "Parsed using simplified matching — try rephrasing for best results."
-3. Result: user is informed of the degraded mode without an alarming warning banner.
+### Dependencies
 
-**Inputs:** `parser_used` field from the response.
+Ready scientific artifacts, integrated frontend, secret policy, and smoke tests.
 
-**Outputs:** Rendered disclosure line under the response.
+### Current status
 
-**Edge cases & error handling:**
-- Edge case: `parser_used == "llm"` → behavior: no disclosure line rendered.
+🟡 Recipe implemented; runtime/deployment acceptance ⚪ needs verification.
 
-**Dependencies:** Feature 7 (Rule-Based Fallback Parser).
+### Remaining work
 
----
+Run liveness/readiness/pinned/error smoke checks, verify read-only artifact mounting and secrets, then choose/record hosting.
 
-## 17. LLM Parser Eval Set
-**Category:** QA
-**Phase:** Phase 5
-**Priority:** Should-have
+## 12. Evaluation, cached fallback, and rehearsal
 
-**What it does:**
-Runs a hand-written set of 20–25 test queries through the LLM parser (Feature 6) to measure and record its real accuracy before it's cited in the pitch.
+### Purpose
 
-**User story:**
-As a judge, I want to know the parser's real accuracy rather than an unverified claim, so that I can trust the number presented in the pitch.
+Support truthful claims and keep the presentation usable during provider/network/runtime failure.
 
-**How it works:**
-1. Trigger: run manually before the final pitch, Phase 5.
-2. Logic: runs each test query (covering pinned phrasings, city names, missing dates, ambiguous parameters, malformed input) through Feature 6, compares parsed output to expected output, computes `accuracy = correct_parses / total_test_queries`.
-3. Result: a real, recorded accuracy number used in the pitch deck — never an assumed "90–95%" figure.
+### User flow
 
-**Inputs:** 20–25 hand-written test queries with expected parsed outputs.
+The team measures parser/scientific behaviour, captures sanitized real responses, and switches to clearly labelled cached material when necessary.
 
-**Outputs:** Recorded accuracy percentage.
+### Technical implementation
 
-**Edge cases & error handling:**
-- Edge case: accuracy is lower than expected → behavior: reported honestly; used as input for Day 2 morning triage, not hidden from the pitch.
+The evidence CSV has headers only. Evaluation scripts and cached artifacts do not exist; demo directories contain `.gitkeep` placeholders.
 
-**Dependencies:** Feature 6 (Natural Language Query Parsing).
+### Dependencies
 
----
+Stable integrated build, versioned data/baselines, frozen test sets, and presentation environment.
 
-## 18. Cached Demo Fallback
-**Category:** Reliability
-**Phase:** Phase 5
-**Priority:** Must-have
+### Current status
 
-**What it does:**
-Prepares precomputed JSON responses or screenshots for the three pinned demo queries, so the presentation can continue smoothly if live infrastructure has issues.
+🟠 Planned.
 
-**User story:**
-As the presenting team, I want a fallback for the live demo, so that a network or API hiccup doesn't derail the pitch.
+### Remaining work
 
-**How it works:**
-1. Trigger: prepared during Phase 5, before the final presentation.
-2. Logic: runs the three pinned demo queries against the live system, captures the full response JSON and/or screenshots of the rendered UI.
-3. Result: a ready-to-show static fallback that can be substituted if the live `POST /chat` call fails during judging.
+Implement evaluations, record positive/negative outputs, sanitize cached JSON/screenshots, run projector/offline checks, and record actual rehearsal results.
 
-**Inputs:** Live responses for the three pinned demo queries.
+## Deferred features
 
-**Outputs:** Saved JSON/screenshots for offline use during the demo.
-
-**Edge cases & error handling:**
-- Edge case: live system is fully broken at demo time → behavior: presenter switches to the cached fallback without breaking the presentation flow.
-
-**Dependencies:** Features 8, 9, 10 (the three pinned query types), fully working end-to-end (Phase 3/4 complete).
-
----
-
-## Deferred / Future Features
-- **Multilingual support** (Hindi, Marathi, Tamil, etc.) — deferred to post-hackathon Phase 1 of the future roadmap; not needed to prove the core PS1/PS2/PS3 concept.
-- **Fishing zone & wave height integration** (INCOIS PFZ, wave height API) — deferred; adds scope beyond core ARGO temperature/salinity data.
-- **Cyclone & safety data integration** (IMD cyclone tracks, ocean state forecast) — deferred; a distinct data domain from ARGO profiles.
-- **Multi-turn conversational memory** — deferred; stateless queries were a deliberate scope decision to reduce build risk.
-- **Production deployment / INCOIS-VEDAS integration / mobile & WhatsApp bot** — deferred to post-hackathon Phase 4 of the future roadmap.
-- **Fine-tuned LLM parser** — deferred; a prompted pre-trained model plus an eval set (Feature 17) was judged sufficient for the fixed query schema.
+Multilingual support, PFZ/wave/cyclone domains, multi-turn memory, authentication/accounts, database migration, fine-tuning, native mobile, and WhatsApp integration are outside the core roadmap. They remain long-term options only after the real-data core is complete and a verified need exists.
