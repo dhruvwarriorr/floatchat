@@ -7,21 +7,25 @@ The repository now separates the already-built interface from the API, scientifi
 ## Current implementation status
 
 - `frontend/` is the existing Vite demonstration and still uses bundled illustrative responses.
-- `backend/` is a runnable FastAPI foundation with health checks, the typed `/chat` boundary, a deterministic parser for the pinned query grammar, safe errors, and tests.
+- `backend/` is a runnable FastAPI foundation with health checks, the typed `/chat` boundary, a deterministic parser for the pinned query grammar, safe errors, tests, and explicit planned boundaries for QC filtering, evidence grading, and provenance composition.
 - A real, quality-controlled ARGO subset and its production/validation baselines are **not yet present**. The API reports that state honestly instead of returning invented scientific results.
-- `data/`, `scripts/`, `docs/`, and `demo/` establish the roadmap's evidence and release boundaries.
+- `data/`, `scripts/`, `evaluation/`, `docs/`, and `demo/` establish the scientific, quantitative-evaluation, evidence, and release boundaries.
 
 ## Repository map
 
 ```text
 frontend/                 Existing React + TypeScript + Vite app
 backend/                  FastAPI contract, services, and tests
+  app/services/qc.py      Planned ARGO data-quality path before anomaly scoring
+  app/services/evidence.py Planned multi-signal evidence grading
+  app/services/explain.py Planned computation-transparency/provenance panel
 data/
   raw/                    Local NetCDF inputs; ignored by Git
   processed/              Versioned query-ready Parquet outputs
   baselines/production/   Baselines used by live query responses
   baselines/validation/   Separate known-event validation baselines
-scripts/                  Data, baseline, validation, and evaluation entrypoints
+scripts/                  Planned deterministic scientific/evaluation entrypoints
+evaluation/               Structure for frozen fixtures, notebooks, and generated reports
 docs/                     Architecture, contract, execution, and runbook guidance
 demo/                     Cached offline fallback and presentation captures
 deploy/                   Single-container deployment
@@ -68,4 +72,4 @@ Read these before implementation:
 4. [Demo runbook](docs/DEMO_RUNBOOK.md)
 5. The supplied `FloatChat-Lite_Project_Documentation.docx` and `FloatChat-Lite_Detailed_Project_Roadmap.docx`
 
-The immediate critical path is real ARGO subset preparation -> separate baselines -> one deterministic profile query -> HTTP contract -> frontend integration. Do not add new product scope before that path works.
+The immediate critical path is real ARGO subset preparation -> explicit QC filtering -> separate baselines -> one deterministic profile query -> evidence-grade/provenance contract -> frontend integration -> quantitative evaluation. Do not add new product scope before that path works.

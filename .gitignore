@@ -31,3 +31,5 @@ demo/cached/*
 !demo/cached/.gitkeep
 demo/screenshots/*
 !demo/screenshots/.gitkeep
+evaluation/results/*
+!evaluation/results/.gitkeep

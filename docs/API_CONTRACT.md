@@ -1,73 +1,72 @@
 # FloatChat-Lite API contract
 
-> Status: 🟡 Partially implemented
-> Verified against `backend/app/` on 21 August 2026
+> Status: target Rev. B contract planned; legacy backend boundary partially implemented
+> Synchronized with `docs/ARCHITECTURE.md`, `docs/prd.md`, and `backend/app/` on 21 August 2026
 
-This document describes the contract that exists today and labels fields or behaviours that are not reachable yet. The browser is not connected to this API; see [Architecture](ARCHITECTURE.md) and [Features](feature.md).
-
-## Status legend
-
-- ✅ Implemented in source
-- 🟡 Implemented boundary, incomplete runtime path
-- 🟠 Planned
-- ⚪ Needs verification
-
-## Endpoints
+## Current reachable API
 
 | Method | Path | Status | Current behaviour |
 | --- | --- | --- | --- |
-| `GET` | `/health/live` | ✅ | Returns `200 {"status":"ok"}` when the process is running. |
-| `GET` | `/health/ready` | 🟡 | Returns `200` only when a ready manifest and every declared file exist; currently returns `503` because `data/manifest.json` is absent. It does not validate hashes, schema, provenance, or scientific correctness. |
-| `POST` | `/chat` | 🟡 | Validates input and runs the deterministic parser. Supported input currently reaches `503 general_error` because scientific repository queries are not implemented. No success response is reachable. |
+| `GET` | `/health/live` | ✅ | Returns `200 {"status":"ok"}`. |
+| `GET` | `/health/ready` | 🟡 | Checks ready manifest status and declared file existence only; currently `503` because `data/manifest.json` is absent. |
+| `POST` | `/chat` | 🟡 | Validates input and runs the narrow deterministic parser, then returns `503 general_error`; no scientific success path exists. |
 
-There is no authentication. Queries are stateless and are not persisted.
+The browser does not call this API. `ChatResponse` now structurally defines Rev. B evidence-grade, panel, warning, baseline-`n`, and factual sufficiency fields, but no runtime path constructs it. Legacy profile-count `Confidence` remains internal to the current anomaly scaffold.
 
-## `POST /chat`
+## Request
 
-### Request
-
-`ChatRequest` in `backend/app/models.py` accepts one non-blank string of 1–500 characters:
+`ChatRequest` accepts one non-blank string of 1–500 characters:
 
 ```json
-{
-  "query": "Plot SST time series at 19N, 72.8E from 2015-2024 and tell me if it is unusual"
-}
+{"query":"Plot SST time series at 19N, 72.8E from 2015-2024 and tell me if it is unusual"}
 ```
 
-Structurally invalid JSON, a missing field, blank text, or text over 500 characters uses FastAPI/Pydantic's standard `422` validation response. Normalising that response into the project error envelope is 🟠 planned.
+Structurally invalid requests use FastAPI/Pydantic's standard `422` body. Project-envelope normalization remains a contract decision.
 
-### Deterministic parsing
+## Target processing order
 
-The current parser supports four narrow patterns:
+```text
+validated query
+  → parser (LLM optional, deterministic fallback mandatory)
+  → retrieve matching raw records
+  → mandatory QC/data-mode filter
+  → aggregate QC-passed observations
+  → production-baseline anomaly score
+  → multi-signal evidence grade
+  → computation-transparency/provenance panel
+  → validated ChatResponse
+```
 
-| Pattern | Parsed query type | Parameter |
-| --- | --- | --- |
-| Mumbai + temperature | `profile` | `temperature` |
-| `19N`, `72.8E`, or SST wording | `time_series` | `shallow_sst_proxy` |
-| Bay of Bengal + salinity | `regional_average` | `salinity` |
-| Arabian Sea + warming | `time_series` | `temperature` |
+The anomaly service must never receive QC-rejected records.
 
-It extracts years and full English month names. It is not a general coordinate parser or city gazetteer. Every current parse is tagged `rule_based`; no LLM adapter exists.
+## Target success fields
 
-### Success model: defined but not reachable
+| Field | Purpose |
+| --- | --- |
+| `summary` | Plain-language restatement of the answer. |
+| `query_type` / `params` | Validated query vocabulary and selection. |
+| `data` | Chart-ready result; variants must be frozen from reviewed real fixtures. |
+| `anomaly` | Optional z-score label plus production baseline mean/std/period/`n`; never call sparse-profile output a marine heatwave. |
+| `evidence_grade` | `Insufficient`, `Indicative`, or `Supported`. Replaces `data_sufficiency.confidence`. |
+| `evidence_grade_reasons` | Machine-readable or stable textual reasons for the grade. |
+| `evidence_panel` | QC rule, raw/valid/excluded counts, distinct floats, QC pass rate, current aggregate, baseline mean/std/`n`, score, source/version, and selection provenance. |
+| `data_quality_warning` | True when QC leaves too little trustworthy evidence or exposes a material quality limitation. |
+| `data_sufficiency` | Raw factual counts/coverage only; no trust label. |
+| `answer_explanation` | Source, aggregation, dates, region/radius, proxy caveats, and plain-language interpretation. |
+| `parser_used` | `llm` or `rule_based`; fallback must be disclosed. |
+| `source` / dataset version | Reviewed artifact identity. |
 
-`ChatResponse` is defined and validated by Pydantic:
+No numeric example in architecture or documentation is a measured response fixture.
 
-| Field | Type / values | Notes |
-| --- | --- | --- |
-| `summary` | string | Plain-language result summary. |
-| `query_type` | `profile`, `regional_average`, `time_series` | Duplicates `params.query_type` by current model design. |
-| `params` | `QueryParams` | Validated location, parameter, year range, month, anomaly intent, and parser. |
-| `data` | array of objects | Shape is intentionally not frozen yet. |
-| `anomaly` | object or null | Z-score, label, baseline values/period, and provisional flag. |
-| `answer_explanation` | string | Must state method, source, selection, and proxy caveats. |
-| `data_sufficiency` | object | `profile_count`, textual `coverage`, and `low`/`medium`/`high`. |
-| `parser_used` | `llm` or `rule_based` | `llm` is modelled but not implemented. |
-| `source` | string | Must identify the reviewed dataset/version when real responses exist. |
+## Evidence-grade policy
 
-The frontend currently consumes `OceanResponse` from `frontend/src/types/ocean.ts`, not `ChatResponse`. Those shapes differ and must be reconciled contract-first before integration. Do not reshape the API around illustrative values without a reviewed real response fixture.
+- `Insufficient`: fewer than five valid current profiles or baseline sample size below the frozen minimum.
+- `Indicative`: scoring is possible, but distinct-float/spatial coverage is limited.
+- `Supported`: valid count, baseline `n`, distinct-float coverage, and QC pass rate all meet frozen thresholds.
 
-### Project error envelope
+Only the fewer-than-five rule is currently specified quantitatively. Other thresholds must be frozen from the reviewed dataset and stored in one policy; do not invent them in API code or UI copy.
+
+## Errors
 
 ```json
 {
@@ -79,21 +78,19 @@ The frontend currently consumes `OceanResponse` from `frontend/src/types/ocean.t
 }
 ```
 
-| HTTP status | Error type | Status | Trigger |
-| --- | --- | --- | --- |
-| `422` | `parse_error` | ✅ | Deterministic parser cannot map the text to a supported query. |
-| `404` | `no_data` | 🟠 | Defined in the enum and intended for a valid query with no acceptable observations; no current code path emits it. |
-| `503` | `general_error` | ✅ | Data manifest/artifacts are absent or the repository query is unimplemented. |
-| `500` | `general_error` | 🟡 | Safe fallback exists after repository execution, but the repository currently always raises first. |
+| Status | Type | Current state |
+| --- | --- | --- |
+| `422` | `parse_error` | Implemented for unsupported deterministic input. |
+| `404` | `no_data` | Modelled, but unreachable. Distinct from “records found but rejected/too thin after QC.” |
+| `503` | `general_error` | Implemented for absent/unimplemented scientific data path. |
+| `500` | `general_error` | Safe fallback exists but is not meaningfully exercised after successful repository work. |
 
-Internal traces and filesystem paths must never be returned.
+## Contract migration gate
 
-## Contract freeze gate
-
-Before connecting the frontend:
-
-1. Implement one reviewed real profile query against a versioned dataset.
-2. Freeze a real `ChatResponse` fixture and the chart-data variants.
-3. Reconcile frontend and backend field names/enums together.
-4. Add success, `no_data`, validation, and trace-safety contract tests.
-5. Record the dataset/build and observed integration result in `evidence/evidence-log.csv`.
+1. Freeze ARGO QC flags, adjusted/raw precedence, `data_mode`, grade thresholds, and warning semantics.
+2. Review/freeze the structural target models without treating legacy frontend confidence as evidence grade.
+3. Implement and test QC → anomaly → grade → evidence-panel order.
+4. Freeze one reviewed real fixture per supported data variant.
+5. Reconcile `OceanResponse` and target `ChatResponse` contract-first.
+6. Add success, no-data, QC-warning, each grade, zero-std, validation, and trace-safety tests.
+7. Log quantitative/reliability acceptance in `evidence/evidence-log.csv`.

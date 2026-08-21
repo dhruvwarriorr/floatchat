@@ -1,119 +1,108 @@
 # FloatChat-Lite project documentation
 
-> Central entry point
-> Last synchronized: 21 August 2026
+> Central current-state entry point synchronized to Rev. B on 21 August 2026
 
-## Project overview
+## Overview
 
-FloatChat-Lite is an explainable Indian Ocean ARGO question-answering demonstration. Today, the repository contains an accepted **illustrative** React interface and a **partial** FastAPI safety foundation. It does not contain query-ready ARGO data, scientific preprocessing scripts, baseline artifacts, real repository queries, frontend/API integration, or release evidence.
+FloatChat-Lite targets explainable conversational exploration of Indian Ocean ARGO temperature and salinity. Rev. B separates measurement trust from ocean-event detection:
 
-## Goals
+```text
+retrieve → QC filter → aggregate → anomaly score → evidence grade → provenance panel
+```
 
-- Deliver reviewed real-data profile and time-series/anomaly flows.
-- Show source, method, selection, data sufficiency, confidence, parser, and caveats.
-- Preserve deterministic operation when an optional LLM is unavailable.
-- Keep the stack small, stateless, file-based, and evidence-first.
+The current repository does not implement this scientific path. It contains an accepted illustrative frontend, a partial FastAPI safety scaffold, legacy profile-count confidence/anomaly policy, and new structural service/evaluation boundaries.
 
 ## Current status
 
-| Area | Status | Summary |
+| Area | Status | Reality |
 | --- | --- | --- |
-| Illustrative frontend | ✅ | React/Vite/Recharts, four local flows, static map, confidence/explanation states. |
-| Backend foundation | 🟡 | Models, health, narrow rule parser, anomaly policy, safe errors, tests. |
-| Scientific data and repository | 🔴 | Missing; `/chat` cannot return success. |
-| UI/API integration | 🔴 | Missing; contracts differ. |
-| Deployment/evidence | 🟡 / 🟠 | Recipe exists; no verified runtime, data, cache, or rehearsal. |
+| Illustrative frontend | ✅ | React/Vite/Recharts, static Bhuvan map, four bundled flows, legacy confidence presentation. |
+| API/parser/health | 🟡 | Pydantic boundary, narrow deterministic parser, safe missing-data errors; no success response. |
+| QC Filter | 🟠 structure | `services/qc.py` ownership exists; rules/logic/tests absent. |
+| Anomaly Model | 🟡 legacy | Isolated Z-score/profile-count policy exists; it is not QC-gated or integrated. |
+| Evidence Grade | 🟠 structure | Target enum/panel fields and `services/evidence.py` exist; thresholds/logic/runtime absent. |
+| Evidence panel | 🟠 structure | `services/explain.py` ownership exists; composition/UI absent. |
+| Scientific artifacts/repository | 🔴 | No manifest, Parquet, baselines, or repository success path. |
+| Quantitative evaluation | 🟠 structure | `evaluation/` workspace exists; fixtures/notebooks/results absent. |
+| Integration/release evidence | 🔴 | Frontend does not call API; evidence log empty. |
 
-## Major features
+## Target features
 
-- Implemented illustrative UI: depth profile, shallow-water SST/anomaly context, salinity regional view, warming direction.
-- Implemented narrow deterministic parser for the four pinned phrase families.
-- Partially implemented typed API, health, safe failures, and anomaly/confidence policy.
-- Planned/blocked real preprocessing, Parquet repository, baselines, explanations, API success, integration, evaluation, and cached demo.
+- Mandatory ARGO QC/data-mode filtering before anomaly scoring.
+- Data-quality warning separate from anomaly classification.
+- Z-score over QC-passed observations and production baselines only.
+- Evidence grade from valid count, baseline `n`, distinct-float/spatial coverage, and QC pass rate.
+- Expandable “Why this result?” panel with actual computed values and provenance.
+- Reproducible three-method anomaly comparison and parser/API reliability evaluation.
 
-See [Feature status](feature.md) for purpose, flow, implementation, dependencies, status, and remaining work.
+See [features](feature.md), [API migration](API_CONTRACT.md), and [ADR 0002](adr/0002-qc-before-anomaly-and-evidence-grading.md).
 
-## Technology stack
+## Stack and current/target differences
 
-- Frontend: React 19, TypeScript 5.9, Vite 8, Recharts, Lucide React, local variable fonts.
-- Backend: Python ≥3.11, FastAPI, Pydantic, Uvicorn.
-- Planned scientific path: xarray/pandas/NumPy/PyArrow and Parquet.
-- Runtime: one container; no database, auth, queue, or microservices.
-
-## Architecture
-
-Current frontend and backend are separate: the UI reads bundled illustrative objects, while the API safely refuses scientific success. The target connects the same accepted UI to one FastAPI boundary backed by offline-prepared artifacts and production baselines. See [Architecture](ARCHITECTURE.md) and [ADR 0001](adr/0001-single-service-file-data.md).
+- Current frontend: React 19, TypeScript 5.9, Vite 8, Recharts, static local map image.
+- Target authority names Plotly/Leaflet; migration is unresolved and not performed by structural synchronization.
+- Backend: Python ≥3.11, FastAPI/Pydantic/Uvicorn; planned pandas/xarray/NumPy/PyArrow path.
+- Storage: versioned Parquet and separate baseline artifacts; no database.
+- Runtime: one container; hosting target remains unverified in current evidence despite the PRD target.
 
 ## Repository structure
 
 ```text
-frontend/   accepted illustrative UI
-backend/    API models/routes/services/tests
-data/       planned scientific artifacts and manifest schema
-scripts/    scientific entrypoints planned
-deploy/     one-container recipe
-demo/       cached fallback placeholders
-docs/       synchronized documentation and evidence
+frontend/                         accepted illustrative UI
+backend/app/api/                  HTTP orchestration
+backend/app/services/
+  parser.py                       current deterministic grammar
+  data.py                         current readiness/refusal boundary
+  qc.py                           planned mandatory QC stage
+  anomaly.py                      current legacy anomaly policy
+  evidence.py                     planned evidence-grade policy
+  explain.py                      planned provenance-panel composer
+backend/tests/fixtures/           future reviewed contract/QC fixtures
+data/                             raw/processed/production/validation artifacts
+scripts/                          deterministic scientific/evaluation commands
+evaluation/
+  fixtures/                       frozen labels/prompts/regions
+  notebooks/                      reproducible comparisons/reliability
+  results/                        generated reports; not evidence by default
+docs/evidence/                    reviewed claim log
+demo/                             sanitized cached responses/screenshots
+deploy/                           one-container recipe
 ```
 
-## Development workflow
+## Development
 
 Requirements: Node.js ≥22.13, Python ≥3.11, and `make`.
 
 ```bash
 make setup
-make dev-web   # terminal 1
-make dev-api   # terminal 2
+make dev-web
+make dev-api
 make check
 make container
 ```
 
-The frontend intentionally does not call the API yet. See the [project handbook](FloatChat-Lite_Project_Documentation.md) for configuration and command caveats.
+The frontend is not integrated with the API. `make check` is an engineering gate, not scientific/reliability acceptance.
 
-## Implementation status
+## Critical issues
 
-Core engineering scaffolding is present; scientific/product completion is not. The next milestone is one reviewed ARGO profile artifact and repository query—not LLM expansion or UI redesign.
-
-## Known issues and technical debt
-
-- Critical: no data/manifest/baselines/scripts/repository success.
-- High: incompatible frontend/backend contracts; no end-to-end path or release evidence.
-- Medium: existence-only readiness, duplicated phrase matching, inactive LLM environment placeholders.
-- Needs verification: container runtime, hosting, accessibility, projector, scientific validation, parser accuracy, and rehearsals.
-
-Detailed severity and context are in the [project handbook](FloatChat-Lite_Project_Documentation.md#13-known-issues-and-technical-debt).
-
-## Testing status
-
-Frontend and backend automated checks and CI are present. They do not prove scientific validity, live integration, deployment, browser/projector acceptance, or demo readiness. The evidence log contains no result rows.
-
-## Deployment status
-
-A Dockerfile and Compose recipe exist. No hosting target or successful release run is verified. Without ready data, readiness correctly fails.
+- QC flags/data-mode/adjusted-value precedence and grade thresholds are not frozen.
+- No reviewed dataset, manifest, baselines, repository queries, or API success exists.
+- Target response models are structurally defined, but the anomaly scaffold and frontend still use legacy Low/Medium/High confidence and no runtime produces the target response.
+- No quantitative labels, notebooks, results, provider reliability measurements, or response-latency measurements exist.
+- Architecture/PRD target Plotly/Leaflet while accepted source uses Recharts/static map; an explicit decision is required.
 
 ## Roadmap
 
-1. P0: freeze data/QC/spatial decisions and preprocess a reviewed subset.
-2. P0: build separate production/validation baselines.
-3. P0: implement profile/time-series repository and API success/no-data.
-4. P1: integrate the accepted frontend through frozen real fixtures.
-5. P1: validate science/failures, container, cached fallback, projector, and rehearsal.
-6. P2: optionally add one LLM adapter and regional average if the core is stable.
+1. Freeze data/QC/grade/labeling policy.
+2. Preprocess auditable ARGO fields and build independent baselines.
+3. Implement/test QC Filter before anomaly scoring.
+4. Implement evidence grade/reasons and provenance panel.
+5. Return reviewed real API fixtures and integrate the accepted UI.
+6. Run three-method scientific comparison and parser/API reliability evaluation.
+7. Verify container, cache, projector, recovery, and rehearsal.
 
-See the [detailed synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md).
+See the [synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md).
 
-## Important decisions
+## Evidence status
 
-- Preserve the accepted UI.
-- Use deterministic parsing for the core; LLM parsing is optional.
-- Keep scientific preprocessing offline and file-based.
-- Keep production and validation baselines separate.
-- Prefer honest scope cuts and negative evidence over unsupported completion claims.
-
-## Future direction
-
-Multilingual, other ocean domains, memory/accounts, databases, mobile/WhatsApp, and scaling are unscheduled. Revisit only after the core has verified release evidence and a demonstrated need.
-
-## Documentation index
-
-Use [docs/README.md](README.md) for the full document map and authority rules.
+No quantitative or release result is currently claimable because `docs/evidence/evidence-log.csv` has no result rows. See [evidence rules](evidence/README.md).

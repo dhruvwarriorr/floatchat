@@ -1,161 +1,111 @@
 # FloatChat-Lite synchronized roadmap
 
-> Source of truth for priorities and dependencies
-> Rebuilt from current repository state on 21 August 2026
+> Rebuilt from Rev. B requirements and current repository state on 21 August 2026
 
-## Roadmap outcome
+## Outcome
 
-The next milestone is not “more features.” It is a truthful end-to-end profile and time-series/anomaly path from reviewed ARGO artifacts through `/chat` into the accepted UI, followed by recorded scientific, failure, deployment, and demo evidence.
+Deliver a QC-gated real-data path whose anomaly and reliability claims are reproducible. The critical dependency chain is:
 
-## Priority model
-
-- **P0 — Critical:** required for any real-data success path.
-- **P1 — High:** required for a judge-ready, trustworthy release.
-- **P2 — Medium:** useful after the deterministic core is stable.
-- **P3 — Low:** optional future exploration.
+```mermaid
+flowchart LR
+    A[Freeze data/QC/labels] --> B[Preprocess auditable artifacts]
+    B --> C[QC Filter]
+    B --> D[Independent baselines]
+    C --> E[QC-passed aggregation]
+    D --> F[Anomaly Model]
+    E --> F
+    F --> G[Evidence Grade]
+    G --> H[Provenance panel/API fixtures]
+    H --> I[Accepted UI integration]
+    I --> J[Quantitative + reliability evaluation]
+    J --> K[Release evidence]
+```
 
 ## Completed
 
-These items are genuinely present in source for their stated limited scope:
+- Accepted illustrative React/Vite/Recharts UI with four local flows.
+- FastAPI request/error/health foundation and narrow deterministic parser.
+- Isolated legacy Z-score/profile-count tests.
+- Data/baseline directories, manifest schema, CI/checks, container recipe, evidence/demo boundaries.
+- Rev. B structural boundaries: `qc.py`, `evidence.py`, `explain.py`, backend fixture directory, and `evaluation/` workspace.
 
-| Priority | Item | Verified current state |
-| --- | --- | --- |
-| P0 | Repository boundaries | Frontend, backend, data, scripts, deployment, demo, docs, and evidence areas exist. |
-| P0 | Accepted illustrative UI | Four bundled flows, Recharts views, static map context, loading/error/reset, confidence and explanation presentation. |
-| P0 | API safety scaffold | Typed models, `POST /chat` boundary, liveness/readiness, safe parse/data-unavailable errors. |
-| P0 | Deterministic pinned parser | Four narrow phrase families, month/year extraction, `rule_based` tag, tests. |
-| P0 | Anomaly/confidence policy | Boundary function and tests for labels, thresholds, zero std, and low-confidence suppression. |
-| P1 | Engineering checks | Frontend/backend checks and GitHub Actions workflow exist. |
-| P1 | Single-container recipe | Dockerfile and Compose configuration exist; runtime acceptance remains unverified. |
-
-“Completed” here does not mean the product or scientific pipeline is complete.
+Structural files are not completed scientific features.
 
 ## In progress
 
-No active implementation work can be verified from repository state alone. Partially implemented foundations are listed under Completed with their limited scope and under Next where completion work remains. Assign owners before treating any roadmap item as actively in progress.
+No owner/activity can be verified. Assign owners before marking implementation work active.
 
-## Next
+## Next — P0
 
-### P0 — freeze scientific inputs and build one real subset
+### Freeze scientific and evaluation policy
 
-**Dependencies:** source access and team decisions.
+- Exact ARGO source/licence/subset/regions/radii.
+- Accepted QC flags, raw/adjusted precedence, `data_mode`, profile identity, shallow-water cutoff.
+- Baseline periods/minimum `n`, distinct-float/spatial thresholds, QC pass-rate threshold, and grade reasons.
+- Ground-truth/labeling method and query-coverage denominator for evaluation.
 
-1. Freeze source/access/licence, Mumbai-first coverage, region/radius rules, QC policy, adjusted/raw precedence, depth rule, and shallow-water cutoff.
-2. Implement deterministic NetCDF-to-Parquet preprocessing and manifest generation.
-3. Manually review sample profiles and validate schema/ranges/duplicates/missing values.
-4. Add manifest schema/hash/provenance verification.
+### Build auditable artifacts
 
-**Exit:** a versioned reviewed profile artifact can be reproduced and one profile can be inspected/query-tested.
+- Deterministic preprocessing retaining QC/data-mode audit fields.
+- Reviewed manifest with provenance, coverage, policy, command, version, and hashes.
+- Separate production/validation baselines with mean/std/`n`.
 
-### P0 — build independent baselines
+### Implement QC-gated core
 
-**Dependencies:** reviewed profile artifact and frozen regions/periods.
+- Repository profile then time-series retrieval.
+- QC Filter with retained/excluded counts, reasons, pass rate, distinct floats, warning.
+- Anomaly Model over QC-passed aggregates only.
+- Evidence Grade/reasons and provenance panel.
+- Target success, `no_data`, QC-warning, sparse/zero-std, and trace-safety tests.
 
-1. Implement production and validation baseline generation.
-2. Store region/month/parameter, exact periods, mean, standard deviation, count, dataset version, and hashes.
-3. Verify serving cannot read validation artifacts.
+## Planned — P1
 
-**Exit:** distinct reviewed artifacts exist; zero/insufficient standard-deviation policy is testable.
+### Contract and UI integration
 
-### P0 — implement repository and HTTP success
+- Freeze reviewed real response variants.
+- Complete migration from legacy internal `Confidence` to the structurally defined target evidence-grade response.
+- Resolve Plotly/Leaflet target versus accepted Recharts/static-map implementation.
+- Add API adapter, typed failures, QC warning, grade badge, fallback disclosure, and expandable panel.
 
-**Dependencies:** real profile and production baseline artifacts.
+### Quantitative validation and reliability
 
-1. Implement profile, then time-series repository queries.
-2. Compute sufficiency from matching profiles and connect anomaly/explanation logic.
-3. Return validated success and `404 no_data` responses.
-4. Freeze real fixtures and chart-data variants.
+- Compare regional-average, unfiltered Z-score, and full QC/evidence pipeline.
+- Report confusion counts, precision, recall, F1, false-alert rate, coverage, and response time.
+- Run 20–30-query parser/API reliability test with LLM disabled and simulated failures; report invalid rate and average/p95 latency.
+- Review outputs and log claims without editing negative results.
 
-**Exit:** both core flows work through `/chat` with the deterministic parser and safe error paths.
+### Release
 
-## Planned
+- Verify container/local health and pinned/error flows.
+- Capture complete sanitized cached responses including QC/grade/provenance.
+- Test browser/projector/offline recovery and record rehearsals.
 
-### P1 — integrate the accepted frontend
+## Planned — P2
 
-**Dependencies:** frozen real API fixtures.
-
-- Reconcile frontend/backend types through a narrow adapter.
-- Replace local runtime response selection with `/chat`.
-- Add typed error and rule-parser disclosure UI.
-- Preserve Recharts, static map, copy boundaries, layout, and interactions.
-- Run keyboard, responsive, browser, and projector acceptance.
-
-### P1 — validate and release
-
-**Dependencies:** integrated real-data build.
-
-- Run scientific validation and record exact positive/negative output.
-- Build/start the container with ready data and run all smoke/error paths.
-- Capture sanitized cached JSON/screenshots with provenance.
-- Test offline recovery and rehearse; record actual outcomes.
-- Freeze the build and remove unsupported pitch claims.
-
-### P2 — optional provider and regional average
-
-**Dependencies:** deterministic integrated core.
-
-- Choose one LLM provider only after quota/latency review.
-- Implement strict output validation, short timeout, and deterministic fallback.
-- Run a frozen parser evaluation and forced failure cases.
-- Include regional average only if data coverage and core stability support it.
+- Add one optional LLM adapter only after the deterministic core works.
+- Add regional average only if QC-passed coverage is stable.
+- Improve readiness integrity checks and accessibility acceptance.
 
 ## Blocked
 
-| Task | Blocking dependency | Unblock condition |
-| --- | --- | --- |
-| Real `/chat` success | No reviewed artifacts; repository unimplemented | Profile artifact + repository query |
-| Frontend/API integration | No real fixture and incompatible types | Freeze success/data variants |
-| Real anomaly results | No production baseline | Versioned production baseline |
-| Scientific validation claim | No validation artifact/script/evidence | Separate validation baseline + recorded run |
-| LLM evaluation | No provider decision; deterministic core incomplete | Working deterministic flow + one provider |
-| Deployment/demo acceptance | No ready data/integration/evidence | Integrated release candidate and runbook gate |
-
-## Future / long-term
-
-### P3 — investigate only after release evidence
-
-- Multilingual access.
-- PFZ, wave-height, cyclone, or forecast data as separately governed domains.
-- Multi-turn conversation, accounts, persistence, mobile, or WhatsApp.
-- Alternative storage/scaling only after measured need.
-- More advanced anomaly methods only if the explainable baseline is insufficient and evaluation criteria are defined.
-
-## Dependency map
-
-```mermaid
-flowchart TD
-    A[Data decisions] --> B[Preprocessing + manifest]
-    B --> C[Production baseline]
-    B --> D[Validation baseline]
-    B --> E[Profile repository]
-    C --> F[Time-series + anomaly]
-    E --> G[Real API fixtures]
-    F --> G
-    G --> H[Accepted UI integration]
-    D --> I[Scientific validation]
-    H --> J[Container + browser acceptance]
-    I --> K[Evidence gate]
-    J --> K
-    K --> L[Cached fallback + rehearsal + release]
-    H --> M[Optional LLM adapter]
-    M --> N[Parser evaluation]
-```
-
-## Milestone acceptance
-
-| Milestone | Required evidence |
+| Task | Blocker |
 | --- | --- |
-| M1 Data ready | Manifest/version/provenance/QC/hash review and manually checked profiles |
-| M2 Core API | Real profile and time-series responses plus success/no-data/sparse/zero-std tests |
-| M3 Integrated UI | Browser evidence for both core flows and typed failures without illustrative ambiguity |
-| M4 Scientific/provider evidence | Exact validation output; parser result only if provider ships |
-| M5 Release | Container/local, cached fallback, projector, recovery, and rehearsal records |
+| Real API success | No reviewed data/repository/QC implementation |
+| Target evidence grade | Thresholds/logic not frozen; structural models only |
+| UI integration | No reviewed target fixture; frontend-library decision unresolved |
+| Accuracy/precision claims | No labels/notebook/results |
+| Parser reliability/latency | No provider adapter or frozen test set |
+| Release acceptance | No integrated real-data candidate/evidence |
+
+## Future — P3
+
+Multilingual, PFZ/wave/cyclone/forecast domains, memory/accounts, database, advanced ML, mobile/WhatsApp, and scaling are unscheduled until the QC-gated core is validated.
 
 ## Scope cut order
 
-1. Narrow geographic/time coverage to the reviewed subset.
-2. Keep the current static map; do not add map interactivity.
+1. Narrow reviewed coverage.
+2. Keep static geographic context rather than add map interaction.
 3. Cut regional average.
-4. Cut the optional LLM adapter and keep the disclosed deterministic grammar.
+4. Cut optional LLM; retain deterministic parser.
 
-Do not cut provenance, confidence, safe errors, scientific integrity, evidence, or rehearsal.
+Never cut QC filtering, grade reasons, provenance, safe failures, evaluation integrity, or rehearsal.

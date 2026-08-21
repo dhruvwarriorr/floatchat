@@ -1,56 +1,39 @@
 # FloatChat-Lite documentation index
 
-> All `docs/**/*.md` files were synchronized against the repository on 21 August 2026.
+> Rev. B synchronization: 21 August 2026
 
-## Start here
+## Target authority
 
-1. [Project documentation](PROJECT_DOCUMENTATION.md) — concise current-state entry point.
-2. [Project handbook](FloatChat-Lite_Project_Documentation.md) — detailed scope, policies, status, structure, workflow, issues, and definition of done.
-3. [Synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md) — completed, next, planned, blocked, and long-term work.
+1. [Product requirements Rev. B](prd.md)
+2. [Architecture Rev. B](ARCHITECTURE.md)
+3. [ADR 0002: QC before anomaly and evidence grading](adr/0002-qc-before-anomaly-and-evidence-grading.md)
 
-## Product and design
+These describe the target. Current implementation status comes from source/tests/artifacts and is summarized below; target requirements are never assumed complete.
 
-- [Product requirements](prd.md) — goals, non-goals, requirements, acceptance evidence, risks, and decisions.
-- [Feature status](feature.md) — each major feature’s purpose, flow, implementation, dependencies, status, and remaining work.
-- [Interface design](design.md) — accepted current UI and target integration behaviour.
+## Current-state entry points
 
-## Engineering
+- [Project documentation](PROJECT_DOCUMENTATION.md)
+- [Detailed project handbook](FloatChat-Lite_Project_Documentation.md)
+- [Feature status](feature.md)
+- [API contract and migration](API_CONTRACT.md)
+- [Interface design and current/target differences](design.md)
 
-- [Architecture](ARCHITECTURE.md) — current and target runtime, component boundaries, data, security, and deployment.
-- [API contract](API_CONTRACT.md) — exact reachable endpoints/errors and planned success contract.
-- [ADR 0001: single service and file-based data](adr/0001-single-service-file-data.md).
+## Delivery and evidence
 
-## Delivery and operations
+- [Synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md)
+- [Delivery phases](phases.md)
+- [Executable todo](todo.md)
+- [Critical-path plan](HACKATHON_EXECUTION.md)
+- [Demo runbook](DEMO_RUNBOOK.md)
+- [Evidence and claim gate](evidence/README.md)
 
-- [Delivery phases](phases.md) — dependency-ordered milestone model.
-- [Executable todo](todo.md) — checkable priority list.
-- [Critical-path hackathon plan](HACKATHON_EXECUTION.md) — compressed execution from the current state.
-- [Demo runbook](DEMO_RUNBOOK.md) — release gate, deployment/judging checks, and recovery.
-- [Evidence and claim gate](evidence/README.md) — rules for recorded results.
+## Decisions and references
 
-## References
+- [ADR 0001: single service/file data](adr/0001-single-service-file-data.md)
+- [Supplied references](reference/README.md)
 
-- [Supplied reference artifacts](reference/README.md) — relationship between root DOCX files and synchronized Markdown.
+## Standard vocabulary
 
-## Source-of-truth order
+Use: QC Filter/data-quality path, Anomaly Model/ocean-event path, Evidence Grade (`Insufficient`/`Indicative`/`Supported`), computation-transparency/provenance panel, valid/excluded observations, distinct floats, QC pass rate, production baseline, validation baseline, shallow-water SST proxy, deterministic parser, and cached fallback.
 
-When documents and implementation disagree, use:
-
-1. Current source, configuration, tests, and actual artifacts.
-2. This index and [Project documentation](PROJECT_DOCUMENTATION.md).
-3. Detailed architecture/API/feature documents.
-4. Roadmap and planning documents for future work.
-5. Root DOCX files as retained references only.
-
-`evidence/evidence-log.csv` is authoritative for observed results and pitch/release claims. A build or test statement outside that log is not scientific, deployment, provider, projector, or rehearsal evidence.
-
-## Status vocabulary
-
-- ✅ Implemented
-- 🟡 Partially implemented
-- 🔵 In development (only when active work is evidenced)
-- 🟠 Planned
-- 🔴 Blocked
-- ⚪ Needs verification
-
-Use “illustrative frontend,” “deterministic parser,” “LLM parser adapter,” “scientific repository,” “prepared profile artifact,” “production baseline,” “validation baseline,” “shallow-water SST proxy,” “data sufficiency,” and “cached fallback” consistently.
+Do not use profile-count confidence as the target trust judgment, call a Z-score result a marine heatwave, or describe provenance reporting as model-attribution XAI.

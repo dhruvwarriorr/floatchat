@@ -1,19 +1,27 @@
 # Evidence and claim gate
 
-> Current status: no observed result rows are recorded as of 21 August 2026.
+> Current status: `evidence-log.csv` contains no observed result rows.
 
-`evidence-log.csv` is the source of truth for results that may support demo, release, or pitch claims. Its empty data section means parser accuracy, scientific validation, container deployment, live-data integration, projector checks, cached fallback acceptance, and rehearsal counts are **not verified**.
+No anomaly accuracy, precision, recall, F1, false-alert rate, query coverage, parser reliability, response latency, deployment, projector, cached-fallback, or rehearsal claim is verified.
 
-Add a row only after running the stated command or method against the recorded dataset/build. Record:
+## Required quantitative evidence
 
-- date and owner;
-- claim or test;
-- exact command or method;
-- dataset version or build identifier;
-- observed result, including negative results;
-- whether the result is allowed in the pitch; and
-- a small evidence artifact path when applicable.
+### Anomaly-method comparison
 
-Automated lint/build/unit-test success is useful engineering evidence but does not prove scientific validity, provider reliability, projector acceptance, deployment health, or rehearsal success.
+Using one frozen reviewed ARGO subset and labels, compare:
 
-Store small sanitized text reports here. Keep scientific artifacts under `data/`, visual captures under `demo/screenshots/`, and secrets/private data out of the repository. Never edit an observed number to improve a claim.
+1. regional-average baseline;
+2. unfiltered Z-score without QC/evidence grading; and
+3. the full QC-filtered, evidence-graded pipeline.
+
+Report confusion counts, precision, recall, F1, false-alert rate, query coverage, and response time for every method. Include label construction, denominators, exclusions, uncertainty, dataset/build version, and command/notebook.
+
+### Parser/API reliability
+
+Use 20–30 frozen paraphrases and repeated requests to report parsing success, invalid-output rate, deterministic behavior with the LLM explicitly disabled, average and p95 latency, plus no-data, sparse-data, malformed-date, and simulated-provider-failure outcomes.
+
+## Logging rules
+
+Each evidence row records date, owner, claim/test, exact command/method, dataset/build, observed result, pitch permission, and evidence path. Negative results remain unchanged. Generated files under `evaluation/results/` are not claim evidence until reviewed and logged.
+
+Automated lint/build/unit tests are engineering checks, not scientific, provider, deployment, projector, or rehearsal acceptance.

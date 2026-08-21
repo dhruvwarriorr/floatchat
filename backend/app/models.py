@@ -24,9 +24,17 @@ class ParserUsed(StrEnum):
 
 
 class Confidence(StrEnum):
+    """Legacy illustrative/profile-count tier used by the current anomaly scaffold."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class EvidenceGrade(StrEnum):
+    INSUFFICIENT = "Insufficient"
+    INDICATIVE = "Indicative"
+    SUPPORTED = "Supported"
 
 
 class ErrorType(StrEnum):
@@ -72,7 +80,19 @@ class QueryParams(BaseModel):
 class DataSufficiency(BaseModel):
     profile_count: int = Field(ge=0)
     coverage: str
-    confidence: Confidence
+    coverage_radius_km: float | None = Field(default=None, ge=0)
+
+
+class EvidencePanel(BaseModel):
+    raw_profile_count: int = Field(ge=0)
+    valid_profile_count: int = Field(ge=0)
+    excluded_profile_count: int = Field(ge=0)
+    distinct_float_count: int = Field(ge=0)
+    qc_pass_rate: float = Field(ge=0, le=1)
+    qc_rule: str
+    current_period_summary: str
+    baseline_summary: str | None = None
+    score_summary: str | None = None
 
 
 class AnomalyResult(BaseModel):
@@ -81,7 +101,7 @@ class AnomalyResult(BaseModel):
     baseline_mean: float
     baseline_std: float = Field(gt=0)
     baseline_period: str
-    provisional: bool
+    baseline_n: int = Field(gt=0)
 
 
 class ChatResponse(BaseModel):
@@ -90,6 +110,10 @@ class ChatResponse(BaseModel):
     params: QueryParams
     data: list[dict[str, Any]]
     anomaly: AnomalyResult | None = None
+    evidence_grade: EvidenceGrade
+    evidence_grade_reasons: list[str] = Field(min_length=1)
+    evidence_panel: EvidencePanel
+    data_quality_warning: bool
     answer_explanation: str
     data_sufficiency: DataSufficiency
     parser_used: ParserUsed

@@ -1,90 +1,62 @@
 # FloatChat-Lite interface design
 
-> Status: accepted illustrative frontend implemented; real-data integration planned
-> Verified against `frontend/src/` on 21 August 2026
+> Current accepted illustrative UI plus Rev. B target requirements
+> Last synchronized: 21 August 2026
 
-## 1. Design principles
+## Current interface
 
-- **Explain, do not merely answer.** Each rendered illustrative response includes a summary, chart reading, preparation notes, geographic context, and confidence.
-- **Honesty over polish.** Current values are illustrative. Warming and anomaly wording is limited to the displayed dataset.
-- **One response per query.** The interface is stateless and has idle, loading, success, error, and reset flows.
-- **Preserve the accepted UI.** Integration work must adapt the contract without redesigning the layout, copy, interaction pattern, or libraries unless explicitly requested.
-- **Desktop-first, responsive web.** The app targets a presentation/laptop screen and includes narrow-viewport styling; no native application is planned.
+The current frontend is a local React/TypeScript/Vite demonstration using Recharts, a static Bhuvan image, and four bundled illustrative responses. It implements input/Enter submission, staged loading, success, one unsupported-query error, reset, charts, map context, a profile-count confidence gauge, status cards, and preparation text.
 
-## 2. Current user flow
+It does **not** call `/chat`, render suggested-query chips, distinguish typed API errors, expose QC filtering, render `evidence_grade`, or provide the expandable Rev. B “Why this result?” evidence panel. Its Low/Medium/High confidence is legacy illustrative behaviour, not the target trust judgment.
+
+## Target user flow
 
 ```mermaid
 flowchart LR
-    A[User enters free text] --> B[Submit or Enter]
-    B --> C[Staged local loading sequence]
-    C --> D{Phrase matches one of four local patterns?}
-    D -->|Yes| E[Render bundled illustrative response]
-    D -->|No| F[Show one friendly unrecognised-question state]
-    E --> G[User can reset and ask again]
-    F --> G
+    A[Submit question] --> B[POST /chat]
+    B --> C{Typed outcome}
+    C -->|Success| D[Summary + chart + geographic context]
+    D --> E[QC warning when applicable]
+    E --> F[Anomaly badge governed by evidence grade]
+    F --> G[Expandable Why this result? panel]
+    C -->|parse/no data/general| H[Distinct friendly guidance]
 ```
 
-There are no suggested-query chips in the current UI, despite older documents describing them. The four example strings exist in the data module for matching/tests but are not rendered as controls. There is no network request, API failure state, no-data state, or parser disclosure yet.
+## Rev. B trust presentation
 
-## 3. Current screen and components
+| Evidence grade | Required presentation |
+| --- | --- |
+| `Insufficient` | Neutral “not enough data to assess”; no colored severity. Explain which condition failed. |
+| `Indicative` | Show the computed result as provisional and expose limited coverage reasons. |
+| `Supported` | Full visual weight is allowed only when every frozen grade condition passes. |
 
-| Element | Implementation | Status |
-| --- | --- | --- |
-| Header and hero | `Header.tsx`, `FloatChatApp.tsx` | ✅ |
-| Query form | `QueryComposer.tsx`; submit button, Enter handling, empty-input protection, reset | ✅ |
-| Loading sequence | Three staged local messages | ✅ illustrative timing |
-| Result metadata and insight | `ResultView.tsx` | ✅ |
-| Charts | Recharts depth profile, time-series/trend, and salinity regional view | ✅ illustrative |
-| Map context | Static local Bhuvan image with marker/region overlay | ✅ |
-| Confidence | Gauge and profile-count thresholds (1–5 Low, 6–20 Medium, 21+ High) | ✅ illustrative |
-| Anomaly/trend card | Low-confidence neutral suppression and medium provisional wording | ✅ component policy |
-| Explanation | Preparation, grouping, baseline/score, caveat text | ✅ illustrative |
-| Error | One unsupported-question message | 🟡 typed API errors not represented |
-| Suggested chips | Not rendered | 🟠 optional/planned only if explicitly retained during contract integration |
-| Rule-parser disclosure | Not represented in the frontend type | 🟠 planned |
+`data_quality_warning` is separate from the anomaly grade. It explains that records were rejected or trustworthy evidence is limited; it must not be hidden as a generic low-confidence state.
 
-## 4. Supported illustrative flows
+## “Why this result?” evidence panel
 
-| Local phrase match | View | Important disclosure |
-| --- | --- | --- |
-| Mumbai + temperature | Depth profile | Averaged illustrative observations. |
-| SST / `19N` / `72.8` / unusual | Shallow-water time series and anomaly context | Illustrative baseline; proxy is not satellite SST. |
-| Bay of Bengal + salinity | Monthly regional average | Seasonal pattern is visible in the illustrative dataset, not a validated regional conclusion. |
-| Arabian Sea + warming | Trend direction | Describes only the displayed illustrative series. |
+The expandable panel must show actual returned values, not decorative template copy:
 
-These are implemented UI demonstrations, not successful ARGO/API features.
+- dataset source/version and selection dates/region/radius;
+- applied QC/data-mode rule;
+- raw, valid, and excluded observation/profile counts;
+- distinct float count and QC pass rate;
+- aggregation/current-period value;
+- production baseline period, mean, standard deviation, and `n`;
+- z-score and anomaly label when computed;
+- evidence grade plus reasons; and
+- shallow-water SST proxy caveat when relevant.
 
-## 5. Visual system
+Call this computation transparency/provenance reporting. Do not market it as SHAP/LIME-style explainable AI.
 
-- Locally bundled Manrope Variable is the body/interface font.
-- Locally bundled Space Grotesk Variable is used for headings and brand text.
-- Core palette tokens are defined in `frontend/src/globals.css`: deep/panel blue-teal surfaces, teal accents, sand accents, amber, and three text tiers.
-- Result surfaces are flat panels over an ocean video/poster background.
-- Lucide icons accompany meaning; confidence/anomaly states use text and structure in addition to colour.
-- Recharts uses responsive containers. The map has no external tiles or runtime network dependency.
+## Current/target library decision
 
-Older Plotly/Leaflet/system-font descriptions are obsolete for the current frontend.
+The updated architecture and PRD name Plotly.js and Leaflet, while the accepted repository uses Recharts and a static local Bhuvan image. This synchronization does not replace frontend libraries. Before implementation, the product/architecture owners must either:
 
-## 6. Accessibility and responsive behaviour
+1. approve migration to Plotly/Leaflet and explicitly relax the accepted-UI boundary; or
+2. amend the target documents to allow the current libraries when they meet the same chart/geographic/evidence requirements.
 
-Implemented safeguards include labelled form controls, Enter submission, disabled states, semantic result sections, chart `role="img"` summaries, image alternative text, reduced-motion CSS, and responsive chart containers.
+Until that decision, documents distinguish current implementation from target intent rather than claiming either library set is complete.
 
-Accessibility conformance is ⚪ needs verification. No WCAG audit, keyboard-only browser acceptance, screen-reader review, contrast report, or projector check is recorded in the evidence log.
+## Accessibility and acceptance
 
-## 7. Target integrated flow
-
-After real data and the API success contract are frozen:
-
-1. Keep the existing input, loading, result, error, and reset interaction.
-2. Replace local resolution with a typed `/chat` adapter.
-3. Render distinct `parse_error`, `no_data`, and `general_error` messages.
-4. Render `parser_used=rule_based` as a subtle simplified-matching disclosure.
-5. Preserve confidence-aware anomaly presentation.
-6. Ensure every success shows dataset/version, method, date/selection, profile count, confidence, and proxy caveat.
-
-## 8. Remaining design decisions
-
-- 🟠 Decide whether suggested queries are intentionally omitted or should be reintroduced during integration. This requires explicit product confirmation because the accepted UI currently omits them.
-- 🟠 Define backend chart-data variants and a type adapter without changing current component behaviour.
-- ⚪ Verify projector/narrow-screen readability and accessibility on the actual presentation setup.
-- 🟠 Define loading/error copy for real API latency and typed failures.
+Use labels, keyboard operation, text equivalents, reduced motion, and color-plus-text status cues. Formal WCAG, screen-reader, browser, narrow-screen, and projector acceptance remains unverified and must be logged.

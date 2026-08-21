@@ -1,255 +1,127 @@
 # FloatChat-Lite project handbook
 
-> Detailed product and engineering baseline
-> Status: illustrative frontend and backend foundation implemented; scientific pipeline and integration incomplete
-> Last synchronized: 21 August 2026
+> Detailed target/current baseline
+> Rev. B synchronization: 21 August 2026
 
-For the concise entry point, use [Project documentation](PROJECT_DOCUMENTATION.md). This handbook captures the stable scope, terminology, policies, and definition of done without presenting planned work as implemented.
+## 1. Purpose and scientific claim boundary
 
-## 1. Project purpose
+FloatChat-Lite aims to answer supported Indian Ocean ARGO questions with computation transparency. It must first determine whether observations are trustworthy, then determine whether trustworthy aggregates are unusual. A QC failure is not an ocean event, and a sparse-profile Z-score is not a marine-heatwave detector.
 
-FloatChat-Lite is a narrow, explainable demonstration for supported Indian Ocean ARGO temperature and salinity questions. Its intended real-data response joins:
+Current UI values remain illustrative. No real ARGO result, evidence grade, anomaly accuracy, parser reliability, or latency figure is verified.
 
-- a natural-language query;
-- validated structured parameters;
-- a reviewed, versioned ARGO subset;
-- a chart and geographic context;
-- optional anomaly context from a production baseline;
-- data sufficiency and confidence; and
-- source, method, selection, parser, and proxy caveats.
+## 2. Vocabulary
 
-The current repository demonstrates the experience with bundled illustrative values and safely refuses real API answers because scientific artifacts and repository queries are absent.
-
-## 2. Official vocabulary
-
-| Term | Meaning |
+| Term | Definition |
 | --- | --- |
-| **Illustrative frontend** | The accepted UI backed by bundled `OceanResponse` values; not live or validated ocean data. |
-| **Deterministic parser** | The narrow Python rule parser for the four pinned phrase families. Use this term instead of “fallback parser” when no LLM is involved. |
-| **LLM parser adapter** | Optional planned provider integration. It must fall back to the deterministic parser. |
-| **Scientific repository** | Runtime service that will read reviewed prepared artifacts and perform supported filters/aggregations. |
-| **Prepared profile artifact** | Versioned query-ready Parquet produced offline from reviewed ARGO inputs. |
-| **Production baseline** | Baseline used by live answers. |
-| **Validation baseline** | Separate artifact used only for known-event/scientific evaluation. |
-| **Shallow-water SST proxy** | Shallowest acceptable ARGO measurement within a documented cutoff; not satellite SST. |
-| **Data sufficiency** | Matching profile count, documented coverage, and confidence tier. |
-| **Cached fallback** | Sanitized response/screenshot captured from a recorded build, labelled with origin and version. |
+| QC Filter | Mandatory data-quality stage that applies frozen ARGO QC/data-mode/adjusted-value rules before anomaly scoring. |
+| Data-quality warning | Separate output describing rejected/thin trustworthy data; not an anomaly label. |
+| Anomaly Model | Z-score classification over QC-passed aggregates and production baselines only. |
+| Evidence Grade | `Insufficient`, `Indicative`, or `Supported` based on several trust signals. |
+| Evidence panel | Expandable “Why this result?” computation/provenance values. |
+| Production baseline | Live-answer baseline; never validation evidence. |
+| Validation baseline | Independent evaluation artifact; never used for live answers. |
+| Shallow-water SST proxy | Documented shallow ARGO measurement proxy; not satellite SST. |
 
-## 3. Current status
+## 3. Target flow and responsibilities
 
-| Area | Status | Repository reality |
-| --- | --- | --- |
-| Product/UI experience | ✅ illustrative | Four local response flows, charts, static map, confidence, explanation, error/loading/reset. |
-| Query/API foundation | 🟡 partial | Deterministic parser, Pydantic models, health, safe errors; no success response. |
-| Anomaly policy | 🟡 partial | Threshold/confidence code and tests; no real baseline or runtime connection. |
-| Scientific data | 🔴 blocked | No manifest, Parquet, or baseline artifact. |
-| Scientific scripts/repository | 🔴 blocked | Required entrypoints and query implementation absent. |
-| Frontend/API integration | 🔴 blocked | No client; frontend/backend types diverge. |
-| Optional LLM | 🟠 planned | Environment placeholders/model enum only. |
-| Deployment | 🟡 recipe only | Docker/Compose exist; no accepted run or hosting target. |
-| Evidence/demo | 🟠 planned | Evidence log and cache directories are empty apart from structure. |
-
-## 4. Scope
-
-### Core release
-
-- Profile and time-series/anomaly questions from a reviewed subset.
-- Regional average only if stable after the core flows.
-- Temperature, salinity, and explicitly disclosed shallow-water SST proxy.
-- One accepted web interface and one FastAPI application.
-- Offline preprocessing, Parquet serving artifacts, and separate baseline artifacts.
-- Deterministic parser; at most one optional LLM adapter.
-- Typed safe failures, confidence-aware anomaly policy, and complete method/provenance context.
-- One-container live/local path plus sanitized cached fallback.
-
-### Explicit non-goals
-
-Authentication, accounts, chat history, multi-turn memory, database servers, live NetCDF processing, vector search, LangChain, agents, fine-tuning, multiple providers, microservices, queues, advanced ML anomaly detection, native mobile, WhatsApp, multilingual, fishing-zone, wave, cyclone, and forecast integrations.
-
-## 5. Current frontend
-
-The accepted frontend uses React 19, TypeScript, Vite, Recharts, Lucide React, and locally bundled Manrope/Space Grotesk fonts. It has one page and no authentication or navigation hierarchy.
-
-Four phrase families resolve locally to illustrative views:
-
-1. Mumbai temperature depth profile.
-2. Shallow-water SST proxy time series/anomaly at 19N, 72.8E.
-3. Bay of Bengal monthly salinity regional average.
-4. Arabian Sea warming/trend direction.
-
-Suggested query chips are **not** rendered. Geographic context uses a static local Bhuvan image, not Leaflet. Charts use Recharts, not Plotly. See [Interface design](design.md).
-
-## 6. Current backend
-
-FastAPI exposes:
-
-- `GET /health/live` — process liveness;
-- `GET /health/ready` — current manifest/file-existence readiness; and
-- `POST /chat` — validated input, deterministic parsing, and safe refusal when data is unavailable.
-
-`POST /chat` cannot return `ChatResponse`. The repository performs no scientific query and always raises. `no_data` is modelled but unreachable. See [API contract](API_CONTRACT.md).
-
-## 7. Scientific policy
-
-### Prepared data
-
-The final schema and QC choices are unresolved. At minimum, preserve float identifier, time, coordinates, consistent depth, adjusted temperature/salinity where acceptable, and enough QC/provenance information to audit filtering.
-
-### Baseline separation
-
-Production and validation baselines must be separately versioned and stored. A validation baseline cannot support live answers; a production baseline cannot be used as independent validation evidence.
-
-### Anomaly and confidence
-
-Current project policy:
-
-- `|z| < 1.5`: normal;
-- `1.5 ≤ |z| < 2.5`: mild positive/negative;
-- `|z| ≥ 2.5`: strong positive/negative;
-- 1–5 profiles: low; suppress severity;
-- 6–20: medium; provisional;
-- 21+: high; full severity may be shown.
-
-Skip scoring for non-positive baseline standard deviation or no supporting profiles. These thresholds are project policy, not a universal scientific standard, and still require data-specific validation.
-
-## 8. Required real success content
-
-Every successful real-data response must include:
-
-- source and dataset version;
-- query type and validated parameters;
-- chart-ready data;
-- aggregation method;
-- exact date window;
-- radius or named region definition;
-- profile count, coverage, and confidence;
-- parser used;
-- optional anomaly with production baseline period/mean/std and explanation; and
-- shallow-water proxy caveat where relevant.
-
-No illustrative value may be copied into a real response fixture merely to unblock integration.
-
-## 9. Repository structure
-
-```text
-FloatChat/
-├── frontend/                  accepted illustrative React app
-├── backend/
-│   ├── app/api/               HTTP routes and safe error mapping
-│   ├── app/services/          parser, data boundary, anomaly policy
-│   └── tests/                 backend unit/API tests
-├── data/
-│   ├── raw/                   local source inputs; ignored by default
-│   ├── processed/             planned query-ready artifacts
-│   ├── baselines/production/  planned serving baselines
-│   ├── baselines/validation/  planned evaluation baselines
-│   └── manifest.schema.json
-├── scripts/                   frontend boundary check; scientific scripts planned
-├── deploy/                    Dockerfile
-├── demo/                      planned cached/screenshot artifacts
-├── docs/                      synchronized documentation and evidence log
-├── compose.yaml
-└── Makefile
+```mermaid
+flowchart LR
+    A[Query] --> B[Validated parser]
+    B --> C[Data retrieval]
+    C --> D[QC Filter]
+    D -->|QC-passed only| E[Aggregation]
+    E --> F[Anomaly Model]
+    F --> G[Evidence Grade]
+    D --> H[Data-quality warning]
+    G --> I[Evidence panel]
+    H --> I
+    I --> J[Validated response]
 ```
 
-## 10. Development workflow
+- Retrieval selects matching raw records and reports raw counts.
+- QC owns acceptance/rejection and data-mode precedence.
+- Anomaly scoring never inspects rejected records.
+- Evidence grading uses valid count, baseline `n`, distinct floats/spatial spread, and QC pass rate.
+- Provenance composition reports actual inputs/intermediates; it does not invent explanations.
 
-Prerequisites: Node.js ≥22.13, Python ≥3.11, and `make`. The container runtime uses Python 3.12.
+## 4. Evidence grade
 
-```bash
-make setup
-make dev-web
-make dev-api
-make check
-make container
-```
+- **Insufficient:** fewer than five valid current profiles or inadequate baseline `n`.
+- **Indicative:** score can be computed but float/spatial coverage is limited.
+- **Supported:** all frozen valid-count, baseline, coverage, and QC-pass conditions hold.
 
-Run web and API development processes in separate terminals. The web interface is at `http://localhost:3000`; API docs are at `http://localhost:8000/docs`.
+The reviewed dataset must determine unresolved baseline/coverage/pass-rate thresholds. The old 1–5/6–20/21+ confidence tiers remain only in legacy code/UI and are not the target methodology.
 
-Configuration is server-side. `.env.example` lists environment, data/static paths, and planned LLM settings. Current backend settings load only environment, data directory, and static directory; the LLM fields have no effect.
+## 5. Data requirements
 
-## 11. Testing and evidence
+Prepared records must retain float/profile identity, time, coordinates, depth, temperature/salinity, QC flags, raw/adjusted values or documented chosen values, and `data_mode`. The manifest records source/licence/provenance, coverage, QC policy, build command, dataset version, artifact hashes, and separate production/validation kinds.
 
-The repository has frontend static/render checks, backend parser/anomaly/API/health tests, linting, and GitHub Actions. These checks verify code boundaries, not scientific correctness, live provider behaviour, container deployment, projector usability, or rehearsals.
+## 6. Quantitative validation
 
-The evidence CSV currently has no result rows. Therefore no parser accuracy, heatwave validation, deployment, cache, or rehearsal result is claimable. See [Evidence and claim gate](evidence/README.md).
+One frozen evaluation must compare regional-average, unfiltered-Z-score, and full QC-filtered/evidence-graded methods on the same labels/subset. Report confusion counts, precision, recall, F1, false-alert rate, query coverage, and response time. Label creation and denominators are part of the result.
 
-## 12. Deployment status
+Parser/API reliability must use 20–30 paraphrases, explicit model-disabled operation, invalid output, fallback, average/p95 latency, no-data, sparse-data, malformed dates, and simulated provider failure.
 
-The multi-stage Dockerfile builds the frontend and runs FastAPI; Compose mounts `data/` read-only. This is a recipe, not a verified deployment. Hugging Face Spaces or any other host is only an option until selected and tested.
+No placeholder metric or target may be presented as observed.
 
-## 13. Known issues and technical debt
+## 7. Current implementation
+
+- Accepted frontend: bundled illustrative responses, Recharts, static map, legacy confidence.
+- Backend: deterministic pinned parser, typed health/error boundary, existence-based readiness, legacy anomaly policy.
+- Structural additions: `qc.py`, `evidence.py`, `explain.py`, test-fixture boundary, and `evaluation/` workspace.
+- Structural target models exist, but scientific logic/data, runtime success, frontend integration, evaluations, evidence, and release acceptance are missing.
+
+## 8. Current/target frontend decision
+
+Rev. B target documents specify Plotly/Leaflet; source uses Recharts/static Bhuvan context and is protected as accepted UI. No library migration is implied by documentation/structure synchronization. Owners must explicitly decide whether to migrate or amend the target documents.
+
+## 9. Security and honesty
+
+- No accounts, authentication, PII, or chat persistence.
+- Query text is untrusted and never executable/path input.
+- Provider secrets remain server-side and absent from notebooks/results/demo captures.
+- Errors remain safe and trace-free.
+- Use “upper-ocean temperature anomaly”/“salinity anomaly,” not marine heatwave.
+- Use “computation transparency/provenance,” not model-attribution XAI.
+
+## 10. Repository and workflow
+
+See [project documentation](PROJECT_DOCUMENTATION.md) for the tree and commands, [API contract](API_CONTRACT.md) for migration, and [evaluation workspace](../evaluation/README.md) for reproducibility rules.
+
+## 11. Known issues
 
 ### Critical
 
-- No reviewed ARGO data, manifest, production baseline, or validation baseline.
-- No preprocessing/baseline/validation scripts or scientific repository query implementation.
-- `/chat` has no success path.
+- No reviewed ARGO artifacts, frozen QC policy, baselines, repository success, or QC implementation.
+- Target evidence-grade/evidence-panel contract is absent.
 
 ### High
 
-- Frontend and backend response models diverge and are not integrated.
-- No `no_data` runtime path or distinct frontend API errors.
-- Readiness does not validate manifest schema/hashes/provenance/scientific validity.
-- No evidence/cached fallback/release acceptance exists.
+- Legacy frontend/backend contracts diverge from each other and Rev. B.
+- No quantitative labels/notebooks/results or response-reliability evidence.
+- Readiness checks existence, not schema/hash/QC/scientific validity.
 
 ### Medium
 
-- Optional LLM configuration is listed but not loaded or implemented.
-- Query matching is duplicated between frontend and backend.
-- Backend response duplicates query type/parser fields.
-- Suggested-query behaviour remains a product decision because the accepted UI omits chips.
+- Provider/hosting and frontend library decisions are unresolved.
+- Suggested queries, typed frontend errors, and parser disclosure are absent.
 
-### Low
+## 12. Definition of done
 
-- Formal accessibility, responsive-browser, and projector acceptance are unrecorded.
-- Root DOCX references may be stale relative to synchronized Markdown.
+- Reviewed versioned ARGO subset retains auditable QC/data-mode fields.
+- QC rejection is tested before anomaly scoring and retained/excluded counts are reported.
+- Independent production/validation baselines exist.
+- Core real-data flows return target responses with evidence grades/reasons and actual provenance values.
+- Three-method anomaly comparison and parser/API reliability outputs are reproducible and logged.
+- Browser/projector, one-container, cached fallback, recovery, and rehearsal evidence is recorded.
 
-## 14. Important decisions
+## 13. References and related decisions
 
-- Use one frontend, one API, file-based prepared data, offline scientific work, and one container. See [ADR 0001](adr/0001-single-service-file-data.md).
-- Preserve the accepted frontend and integrate contract-first.
-- Make the deterministic parser sufficient for core pinned flows; the LLM is optional.
-- Keep production and validation baselines independent.
-- Prefer scope cuts over infrastructure expansion.
-- Treat safe failures and negative evidence as valid outcomes.
+- [PRD Rev. B](prd.md)
+- [Architecture Rev. B](ARCHITECTURE.md)
+- [ADR 0002](adr/0002-qc-before-anomaly-and-evidence-grading.md)
+- [Argo data sources](https://argo.ucsd.edu/data/)
+- [Using Argo profile files](https://argo.ucsd.edu/data/how-to-use-argo-files/)
+- [INCOIS Indian ARGO ERDDAP](https://erddap.incois.gov.in/erddap/tabledap/Indian_ARGO_Floats.html)
 
-## 15. Definition of done
-
-- Reviewed data source/licence/provenance/QC and versioned subset are recorded.
-- Production and validation baselines are separate, reproducible, and hashed.
-- Profile and time-series/anomaly work end-to-end; regional average is either stable or explicitly cut.
-- All real successes include full method, selection, data-sufficiency, parser, and caveat context.
-- All typed failures are friendly and trace-free.
-- Scientific validation and any parser evaluation store exact positive/negative results.
-- Accepted UI passes browser, accessibility-focused, narrow-screen, and projector checks.
-- One-container and sanitized cached fallback paths are verified.
-- Rehearsal results and pitch claims trace to the evidence log.
-
-## 16. Roadmap and future direction
-
-The immediate dependency chain is:
-
-```text
-data decisions
-  → preprocessing + manifest
-  → separate baselines
-  → repository queries
-  → real API fixtures
-  → accepted UI integration
-  → validation + container + cache + rehearsal
-```
-
-See the [synchronized roadmap](FloatChat-Lite_Detailed_Project_Roadmap.md). Long-term features are intentionally unscheduled until the real-data core has release evidence.
-
-## 17. References
-
-External scientific/source references retained from the supplied project material:
-
-1. [Argo data sources](https://argo.ucsd.edu/data/).
-2. [How to use Argo profile files](https://argo.ucsd.edu/data/how-to-use-argo-files/).
-3. [INCOIS Indian ARGO Floats ERDDAP dataset](https://erddap.incois.gov.in/erddap/tabledap/Indian_ARGO_Floats.html).
-4. Kelley, D. E. et al. (2021), “argoFloats: An R Package for Analyzing Argo Data,” *Frontiers in Marine Science* 8:635922.
-5. Holbrook, N. J. et al. (2019), “A global assessment of marine heatwaves and their drivers,” *Nature Communications* 10, 2624.
-
-These references support background/scientific planning, not claims that the current implementation has ingested or validated a dataset.
+External references support planning; they do not prove current ingestion, accuracy, reliability, or deployment.

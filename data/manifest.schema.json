@@ -3,7 +3,7 @@
   "$id": "https://floatchat.local/schemas/data-manifest.json",
   "title": "FloatChat-Lite data manifest",
   "type": "object",
-  "required": ["status", "dataset_version", "source", "created_at", "build_command", "artifacts"],
+  "required": ["status", "dataset_version", "source", "created_at", "build_command", "qc_policy", "evidence_grade_policy", "artifacts"],
   "properties": {
     "status": { "enum": ["draft", "ready"] },
     "dataset_version": { "type": "string", "minLength": 1 },
@@ -20,7 +20,31 @@
     },
     "created_at": { "type": "string", "format": "date-time" },
     "build_command": { "type": "string", "minLength": 1 },
-    "qc_policy": { "type": "string" },
+    "qc_policy": {
+      "type": "object",
+      "required": ["version", "accepted_flags", "adjusted_value_precedence", "accepted_data_modes", "notes"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "accepted_flags": { "type": "array", "items": { "type": ["string", "integer"] }, "minItems": 1 },
+        "adjusted_value_precedence": { "type": "string", "minLength": 1 },
+        "accepted_data_modes": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "evidence_grade_policy": {
+      "type": "object",
+      "required": ["version", "insufficient_valid_profile_threshold", "baseline_min_n", "min_distinct_floats", "min_qc_pass_rate", "coverage_rule"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "insufficient_valid_profile_threshold": { "type": "integer", "minimum": 1 },
+        "baseline_min_n": { "type": ["integer", "null"], "minimum": 1 },
+        "min_distinct_floats": { "type": ["integer", "null"], "minimum": 1 },
+        "min_qc_pass_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "coverage_rule": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
     "coverage": { "type": "object" },
     "artifacts": {
       "type": "array",
