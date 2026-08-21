@@ -12,11 +12,11 @@
 
 ## P0 — freeze policy
 
-- [ ] Freeze ARGO source/licence/subset and region/radius definitions.
-- [ ] Freeze accepted QC flags, raw/adjusted precedence, `data_mode`, retained audit fields, and shallow-water cutoff.
+- [x] Freeze ARGO source/licence/subset and region/radius definitions in `docs/SCIENTIFIC_POLICY.md`.
+- [x] Freeze accepted QC flags, raw/adjusted precedence, `data_mode`, retained audit fields, and shallow-water cutoff.
 - [ ] Freeze baseline minimum `n`, distinct-float/spatial, QC-pass thresholds, and grade reasons.
-- [ ] Freeze anomaly ground truth/labeling method, exclusions, and coverage denominator.
-- [ ] Resolve current Recharts/static map versus target Plotly/Leaflet.
+- [x] Freeze anomaly ground truth/labeling method, exclusions, and coverage denominator.
+- [x] Keep Recharts/static map for the MVP; defer Plotly/Leaflet migration.
 
 ## P0 — data and QC-gated backend
 

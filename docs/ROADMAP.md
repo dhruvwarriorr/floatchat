@@ -191,17 +191,20 @@ Turn unresolved scientific assumptions into one reviewed policy that every later
 
 ### Acceptance checks
 
-- [ ] Source, licence, subset, regions, radii, and date range are recorded.
-- [ ] Accepted QC flags and value/data-mode precedence are explicit.
-- [ ] Aggregation and proxy rules are testable rather than implied.
-- [ ] Production and validation baseline policies cannot overlap operationally.
+- [x] Source, licence, subset, regions, radii, and date range are recorded in `docs/SCIENTIFIC_POLICY.md`.
+- [x] Accepted QC flags and value/data-mode precedence are explicit.
+- [x] Aggregation and proxy rules are testable rather than implied.
+- [x] Production and validation baseline policies cannot overlap operationally.
 - [ ] Every Evidence Grade condition has a dataset-reviewed threshold and reason.
-- [ ] Evaluation labels and denominators are reproducible.
-- [ ] Frontend library direction is recorded without silently redesigning the accepted UI.
+- [x] Evaluation labels and denominators are reproducible.
+- [x] Frontend library direction is recorded without silently redesigning the accepted UI.
 
 ### Deliverable
 
-A reviewed scientific/evaluation policy that unblocks preprocessing, tests, and contracts.
+[Scientific and evaluation policy](SCIENTIFIC_POLICY.md). Its source, QC,
+aggregation, baseline, evaluation, UI, and ownership rules are frozen. Final
+Evidence Grade thresholds remain fail-closed until the correct 2015–2024
+dataset is installed and its coverage distributions are reviewed.
 
 ### Common mistakes
 

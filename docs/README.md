@@ -6,7 +6,8 @@
 
 1. [Product requirements Rev. B](prd.md)
 2. [Architecture Rev. B](ARCHITECTURE.md)
-3. [ADR 0002: QC before anomaly and evidence grading](adr/0002-qc-before-anomaly-and-evidence-grading.md)
+3. [Frozen scientific and evaluation policy](SCIENTIFIC_POLICY.md)
+4. [ADR 0002: QC before anomaly and evidence grading](adr/0002-qc-before-anomaly-and-evidence-grading.md)
 
 These describe the target. Current implementation status comes from source/tests/artifacts and is summarized below; target requirements are never assumed complete.
 
