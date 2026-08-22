@@ -13,7 +13,27 @@ DEPTH_LABELS = ["0–10", "10–25", "25–50", "50–100", "100–200", "200–
 TRACE_SAMPLE_LIMIT = 25
 
 
-def _trace(frame: pd.DataFrame) -> dict[str, Any]:
+def _light_trace(frame: pd.DataFrame) -> dict[str, Any]:
+    """Cheap counts-only trace for secondary views that never render IDs.
+
+    Skips the source-record dedup/sort, which dominates aggregation cost on large
+    regional frames.
+    """
+
+    return {
+        "observation_count": int(len(frame)),
+        "profile_count": int(frame["profile_id"].nunique()) if "profile_id" in frame else 0,
+        "float_count": int(frame["platform_number"].nunique()) if "platform_number" in frame else 0,
+        "profile_ids": [],
+        "float_ids": [],
+        "source_records": [],
+        "truncated": False,
+    }
+
+
+def _trace(frame: pd.DataFrame, *, light: bool = False) -> dict[str, Any]:
+    if light:
+        return _light_trace(frame)
     if frame.empty:
         return {
             "observation_count": 0,
@@ -68,7 +88,10 @@ def _empty(kind: str, parameter: Parameter | str, method: str) -> dict[str, Any]
     }
 
 
-def _profile(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[str, Any]:
+def _profile(
+    df: pd.DataFrame, value_col: str, parameter: Parameter, with_trace: bool = True
+) -> dict[str, Any]:
+    light = not with_trace
     method = (
         "Display: per-profile median within fixed pressure bins, then median across "
         "profiles; representative value: mean of full-column per-profile medians"
@@ -106,7 +129,7 @@ def _profile(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[str
                 "float_count": int(subset["platform_number"].astype(str).nunique()),
                 "unit": _unit(parameter),
                 "trace": _trace(
-                    usable.loc[usable["depth_bin"].astype(str) == label]
+                    usable.loc[usable["depth_bin"].astype(str) == label], light=light
                 ),
             }
         )
@@ -123,7 +146,7 @@ def _profile(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[str
         "profile_count": int(per_profile["profile_id"].nunique()),
         "unit": _unit(parameter),
         "aggregation_method": method,
-        "trace": _trace(df),
+        "trace": _trace(df, light=light),
     }
 
 
@@ -149,7 +172,10 @@ def _profile_values_for_time_series(
     )
 
 
-def _time_series(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[str, Any]:
+def _time_series(
+    df: pd.DataFrame, value_col: str, parameter: Parameter, with_trace: bool = True
+) -> dict[str, Any]:
+    light = not with_trace
     method = (
         "Shallowest QC-passed 0–10 dbar observation per profile, then monthly mean"
         if parameter is Parameter.SHALLOW_SST_PROXY
@@ -187,7 +213,7 @@ def _time_series(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict
                 "profile_count": int(row.profile_count),
                 "float_count": int(row.float_count),
                 "unit": _unit(parameter),
-                "trace": _trace(contributing),
+                "trace": _trace(contributing, light=light),
             }
         )
     current_value = float(monthly["value"].mean())
@@ -199,7 +225,7 @@ def _time_series(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict
         "profile_count": int(profile_values["profile_id"].nunique()),
         "unit": _unit(parameter),
         "aggregation_method": method,
-        "trace": _trace(df),
+        "trace": _trace(df, light=light),
     }
     if parameter is Parameter.SHALLOW_SST_PROXY:
         result["proxy_note"] = (
@@ -209,7 +235,10 @@ def _time_series(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict
     return result
 
 
-def _regional(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[str, Any]:
+def _regional(
+    df: pd.DataFrame, value_col: str, parameter: Parameter, with_trace: bool = True
+) -> dict[str, Any]:
+    light = not with_trace
     method = "0–100 dbar median per profile, monthly means, then mean of represented months"
     if df.empty:
         return {
@@ -260,7 +289,7 @@ def _regional(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[st
                 "profile_count": int(row.profile_count),
                 "float_count": int(row.float_count),
                 "unit": _unit(parameter),
-                "trace": _trace(contributing),
+                "trace": _trace(contributing, light=light),
             }
         )
     annual_mean = float(monthly["value"].mean())
@@ -274,17 +303,22 @@ def _regional(df: pd.DataFrame, value_col: str, parameter: Parameter) -> dict[st
         "depth_range": "0–100 dbar",
         "unit": _unit(parameter),
         "aggregation_method": method,
-        "trace": _trace(upper),
+        "trace": _trace(upper, light=light),
     }
 
 
-def aggregate(qc_result: QCResult, query_type: QueryType, parameter: Parameter) -> dict[str, Any]:
+def aggregate(
+    qc_result: QCResult,
+    query_type: QueryType,
+    parameter: Parameter,
+    with_trace: bool = True,
+) -> dict[str, Any]:
     if query_type is QueryType.PROFILE:
-        return _profile(qc_result.retained, qc_result.value_col, parameter)
+        return _profile(qc_result.retained, qc_result.value_col, parameter, with_trace)
     if query_type is QueryType.TIME_SERIES:
-        return _time_series(qc_result.retained, qc_result.value_col, parameter)
+        return _time_series(qc_result.retained, qc_result.value_col, parameter, with_trace)
     if query_type is QueryType.REGIONAL_AVERAGE:
-        return _regional(qc_result.retained, qc_result.value_col, parameter)
+        return _regional(qc_result.retained, qc_result.value_col, parameter, with_trace)
     raise ValueError(f"Unsupported query type: {query_type}")
 
 

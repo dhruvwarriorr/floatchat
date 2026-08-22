@@ -206,7 +206,9 @@ def _build_parameter_result(
         if alternate_type is params.query_type:
             continue
         try:
-            alternate_agg = aggregate(qc_result, alternate_type, parameter)
+            # Secondary views are illustrative and never render per-row traces,
+            # so skip the expensive source-record tracing to keep latency low.
+            alternate_agg = aggregate(qc_result, alternate_type, parameter, with_trace=False)
         except Exception:
             continue
         if alternate_agg.get("current_value") is not None:
