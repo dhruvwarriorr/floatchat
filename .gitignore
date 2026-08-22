@@ -19,6 +19,7 @@ __pycache__/
 
 # Local scientific source files can be large or license-sensitive. Only the
 # versioned, reviewable artifacts explicitly allowed below belong in Git.
+data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
