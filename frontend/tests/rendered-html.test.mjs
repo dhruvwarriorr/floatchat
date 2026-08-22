@@ -89,14 +89,49 @@ test("shows real provenance in an expandable computation-transparency panel", as
 
   assert.match(panel, /<details className="evidence-details" open>/);
   assert.match(panel, /Why this result\?/);
+  assert.match(panel, /transparency-narrative/);
+  assert.match(panel, /Data retrieval:/);
   assert.match(panel, /rawProfileCount/);
-  assert.match(panel, /rawObservationCount/);
   assert.match(panel, /qcPassRate/);
   assert.match(panel, /QC rule/);
-  assert.match(panel, /Trace displayed values to source observations/);
+  // Section 2 renamed to a collapsed "Data Source" block (v6 reorganization).
+  assert.match(panel, /<summary>Data Source<\/summary>/);
   assert.doesNotMatch(panel, /explainable AI/i);
   assert.match(sufficiency, /Insufficient — not enough evidence to assess/);
   assert.match(sufficiency, /Supported — all implemented conditions met/);
+});
+
+test("renders secondary and supplementary scientific charts (v6)", async () => {
+  const [result, secondary, supplementary, adapter] = await Promise.all([
+    readFile(new URL("src/components/ResultView.tsx", root), "utf8"),
+    readFile(new URL("src/components/SecondaryCharts.tsx", root), "utf8"),
+    readFile(new URL("src/components/SupplementaryCharts.tsx", root), "utf8"),
+    readFile(new URL("src/api/adapter.ts", root), "utf8"),
+  ]);
+
+  assert.match(result, /<SecondaryCharts response=\{response\} \/>/);
+  assert.match(result, /<SupplementaryCharts data=\{response\.supplementaryData\} \/>/);
+  assert.match(secondary, /secondaryViews/);
+  assert.match(supplementary, /T–S diagram/);
+  assert.match(supplementary, /Seasonal cycle/);
+  assert.match(supplementary, /Hovmöller heatmap/);
+  // Region geometry comes from backend bounds, not a duplicated frontend table.
+  assert.match(adapter, /regionContext\(location\.region_id, location\.bounds/);
+  assert.doesNotMatch(adapter, /const REGION_BOUNDS/);
+});
+
+test("map fits selection geometry and stays accessible (v6)", async () => {
+  const [map, geo] = await Promise.all([
+    readFile(new URL("src/components/OceanMap.tsx", root), "utf8"),
+    readFile(new URL("src/utils/geo.ts", root), "utf8"),
+  ]);
+
+  assert.match(map, /fitBounds/);
+  assert.match(map, /invalidateSize/);
+  assert.match(map, /Reset view/);
+  assert.match(map, /map-text-equivalent/);
+  assert.match(geo, /export function formatLatitude/);
+  assert.match(geo, /export function formatRadius/);
 });
 
 test("preserves the reduced-motion background and typed error guidance", async () => {

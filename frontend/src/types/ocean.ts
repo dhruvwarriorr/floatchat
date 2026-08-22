@@ -1,3 +1,5 @@
+import type { ApiAggregateData, ApiSupplementary } from "../api/chatApi";
+
 export type Confidence = "Low" | "Medium" | "High";
 export type ResponseKind = "depth" | "sst" | "salinity" | "warming";
 export type EvidenceGrade = "Insufficient" | "Indicative" | "Supported";
@@ -6,6 +8,8 @@ export interface DataPoint {
   label: string;
   value: number;
   baseline?: number;
+  baselineUpper?: number;
+  baselineLower?: number;
   trend?: number;
   trace?: {
     observationCount: number;
@@ -116,4 +120,8 @@ export interface OceanResponse {
   parserUsed: "llm" | "rule_based";
   source: string;
   parameterSeries?: Record<string, ParameterSeries>;
+  secondaryViews?: Record<string, ApiAggregateData>;
+  supplementaryData?: ApiSupplementary;
+  parameterKey?: string;
+  unit?: string;
 }

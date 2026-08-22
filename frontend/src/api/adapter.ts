@@ -10,15 +10,26 @@ import type {
   StatusDetails,
 } from "../types/ocean";
 
-const REGION_BOUNDS: Record<string, MapContext["region"]> = {
-  "bay-of-bengal": { west: 80, east: 100, south: 5, north: 22, tone: "aqua" },
-  "arabian-sea": { west: 55, east: 75, south: 8, north: 25, tone: "sand" },
-  "lakshadweep-sea": { west: 70, east: 77, south: 7, north: 15, tone: "aqua" },
-  "andaman-sea": { west: 92, east: 100, south: 6, north: 15, tone: "aqua" },
-  "equatorial-indian": { west: 40, east: 100, south: -10, north: 10, tone: "aqua" },
-  "southern-indian": { west: 20, east: 120, south: -50, north: -10, tone: "aqua" },
-  "indian-ocean": { west: 20, east: 120, south: -50, north: 30, tone: "aqua" },
+// Region rectangles are taken from the backend `location.bounds` (the scientific
+// selection source of truth) so the map cannot drift from retrieval. Only the
+// cosmetic tone is chosen here.
+const REGION_TONE: Record<string, "aqua" | "sand"> = {
+  "arabian-sea": "sand",
 };
+
+function regionContext(
+  regionId: string | null,
+  bounds: ChatApiResponse["params"]["location"]["bounds"],
+): MapContext["region"] | undefined {
+  if (!regionId || !bounds) return undefined;
+  return {
+    west: bounds.west,
+    east: bounds.east,
+    south: bounds.south,
+    north: bounds.north,
+    tone: REGION_TONE[regionId] ?? "aqua",
+  };
+}
 
 const PARAMETER_LABELS: Record<string, string> = {
   temperature: "Temperature",
@@ -62,7 +73,7 @@ function trace(value: import("./chatApi").ApiTrace | undefined): DataPoint["trac
 function pointsForData(
   queryType: ChatApiResponse["query_type"],
   data: ChatApiResponse["data"],
-  baselineMean?: number,
+  anomaly?: { baseline_mean: number; baseline_std: number } | null,
 ): DataPoint[] {
   if (queryType === "profile") {
     return (data.bins || []).map((bin) => ({
@@ -74,16 +85,19 @@ function pointsForData(
   const series = queryType === "regional_average"
     ? data.monthly_means || []
     : data.series || [];
+  const hasBand = anomaly != null && anomaly.baseline_std > 0;
   return series.map((point) => ({
     label: point.month,
     value: point.value,
-    baseline: baselineMean,
+    baseline: anomaly?.baseline_mean,
+    baselineUpper: hasBand ? anomaly!.baseline_mean + anomaly!.baseline_std : undefined,
+    baselineLower: hasBand ? anomaly!.baseline_mean - anomaly!.baseline_std : undefined,
     trace: trace(point.trace),
   }));
 }
 
 function points(response: ChatApiResponse): DataPoint[] {
-  return pointsForData(response.query_type, response.data, response.anomaly?.baseline_mean);
+  return pointsForData(response.query_type, response.data, response.anomaly);
 }
 
 function parameterSeries(response: ChatApiResponse): Record<string, ParameterSeries> {
@@ -107,7 +121,7 @@ function parameterSeries(response: ChatApiResponse): Record<string, ParameterSer
         key,
         label: PARAMETER_LABELS[key] || key,
         unit: result.data.unit,
-        data: pointsForData(response.query_type, result.data, result.anomaly?.baseline_mean),
+        data: pointsForData(response.query_type, result.data, result.anomaly),
         averageValue: result.data.annual_mean ?? result.data.current_value ?? undefined,
       },
     ]),
@@ -115,7 +129,10 @@ function parameterSeries(response: ChatApiResponse): Record<string, ParameterSer
 }
 
 function status(response: ChatApiResponse): StatusDetails | undefined {
-  if (!response.anomaly || response.evidence_grade === "Insufficient") return undefined;
+  // The Z-score card is shown whenever a score exists, regardless of the
+  // original query intent. When evidence is Insufficient no anomaly is emitted,
+  // and the StatusCard renders a muted "unavailable" state instead.
+  if (!response.anomaly) return undefined;
   const anomaly = response.anomaly;
   const positive = anomaly.z_score >= 0;
   return {
@@ -187,7 +204,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       coordinates: coordinates(response),
       marker,
       radiusKm: location.radius_km,
-      region: location.region_id ? REGION_BOUNDS[location.region_id] : undefined,
+      region: regionContext(location.region_id, location.bounds ?? null),
     },
     status: status(response),
     preparation: {
@@ -223,5 +240,9 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
     parserUsed: response.parser_used,
     source: response.source,
     parameterSeries: parameterSeries(response),
+    secondaryViews: response.secondary_views,
+    supplementaryData: response.supplementary_data,
+    parameterKey: response.data.parameter,
+    unit: response.data.unit,
   };
 }

@@ -1,9 +1,17 @@
+export interface ApiBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface ApiLocation {
   label: string;
   latitude: number | null;
   longitude: number | null;
   region_id: string | null;
   radius_km: number;
+  bounds?: ApiBounds | null;
 }
 
 export interface ApiQueryParams {
@@ -106,6 +114,42 @@ export interface ApiEvidencePanel {
   trace_sample_truncated: boolean;
 }
 
+export interface ApiSupplementary {
+  ts_diagram?: {
+    points: Array<{ temperature: number; salinity: number; pressure: number | null; profile_id: string }>;
+    profile_count: number;
+    float_count: number;
+  };
+  density_profile?: {
+    bins: Array<{ depth_bin: string; depth_mid: number; density: number; unit: string }>;
+  };
+  heat_content?: {
+    value_mj_per_m2: number;
+    profile_count: number;
+    depth_range: string;
+  };
+  hovmoller?: {
+    grid: Array<{ month: string; depth_bin: string; depth_mid: number | null; value: number }>;
+    parameter: string;
+    unit: string;
+  };
+  seasonal_cycle?: {
+    months: Array<{ month: number; month_label: string; mean: number; std: number; count: number }>;
+    parameter: string;
+    unit: string;
+  };
+  year_over_year?: {
+    years: Record<string, Array<{ month: number; month_label: string; value: number }>>;
+    parameter: string;
+    unit: string;
+  };
+  anomaly_trend?: {
+    series: Array<{ month: string; z_score: number; label: string; current_value: number; baseline_mean: number }>;
+    parameter: string;
+    unit: string;
+  };
+}
+
 export interface ApiParameterResult {
   parameter: "temperature" | "salinity" | "shallow_sst_proxy";
   summary: string;
@@ -121,6 +165,8 @@ export interface ApiParameterResult {
     coverage: string;
     coverage_radius_km: number | null;
   };
+  secondary_views?: Record<string, ApiAggregateData>;
+  supplementary_data?: ApiSupplementary;
 }
 
 export interface ChatApiResponse {
@@ -142,6 +188,8 @@ export interface ChatApiResponse {
   parser_used: "llm" | "rule_based";
   source: string;
   results_by_parameter: Record<string, ApiParameterResult>;
+  secondary_views?: Record<string, ApiAggregateData>;
+  supplementary_data?: ApiSupplementary;
 }
 
 export interface ChatApiError {

@@ -9,6 +9,8 @@ const DepthProfileChart = lazy(() => import("./Charts").then((module) => ({ defa
 const TimeSeriesChart = lazy(() => import("./Charts").then((module) => ({ default: module.TimeSeriesChart })));
 const RegionalAverageView = lazy(() => import("./Charts").then((module) => ({ default: module.RegionalAverageView })));
 const OceanMap = lazy(() => import("./OceanMap").then((module) => ({ default: module.OceanMap })));
+const SecondaryCharts = lazy(() => import("./SecondaryCharts").then((module) => ({ default: module.SecondaryCharts })));
+const SupplementaryCharts = lazy(() => import("./SupplementaryCharts").then((module) => ({ default: module.SupplementaryCharts })));
 
 const metadataIcons = [MapPinned, CalendarRange, Thermometer, ChartSpline];
 
@@ -67,6 +69,12 @@ export function ResultView({ response }: { response: OceanResponse }) {
       </div>
 
       <DataSufficiency response={response} />
+
+      <Suspense fallback={<div className="visualization-loading">Preparing additional charts…</div>}>
+        <SecondaryCharts response={response} />
+        <SupplementaryCharts data={response.supplementaryData} />
+      </Suspense>
+
       <ExplanationPanel response={response} />
     </section>
   );

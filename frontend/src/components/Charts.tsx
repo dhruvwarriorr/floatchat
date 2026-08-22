@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -14,7 +16,7 @@ import type { OceanResponse, ParameterSeries } from "../types/ocean";
 
 const axis = {
   stroke: "rgba(159, 184, 202, 0.52)",
-  tick: { fill: "#9FB8CA", fontSize: 12.5 },
+  tick: { fill: "#9FB8CA", fontSize: 14 },
   tickLine: { stroke: "rgba(159, 184, 202, 0.38)" },
   axisLine: { stroke: "rgba(159, 184, 202, 0.3)" },
 };
@@ -25,19 +27,25 @@ const grid = {
   vertical: false,
 };
 
-const labelStyle = { fill: "#9FB8CA", fontSize: 12, fontWeight: 600 };
+const labelStyle = { fill: "#9FB8CA", fontSize: 13.5, fontWeight: 600 };
 const tooltip = {
   background: "#05203B",
   border: "1px solid rgba(45, 212, 200, 0.4)",
   borderRadius: "10px",
   color: "#F4F8FA",
+  fontSize: "15px",
   boxShadow: "0 18px 44px rgba(3, 45, 88, 0.32)",
 };
-const colours: Record<string, string> = {
+export const colours: Record<string, string> = {
   temperature: "#2DD4C8",
   shallow_sst_proxy: "#EBD096",
   salinity: "#60A5FA",
 };
+
+export const chartAxis = axis;
+export const chartGrid = grid;
+export const chartTooltip = tooltip;
+export const chartLabelStyle = labelStyle;
 
 function availableSeries(response: OceanResponse): ParameterSeries[] {
   if (response.parameterSeries && Object.keys(response.parameterSeries).length > 0) {
@@ -90,19 +98,28 @@ function ParameterToggle({
   );
 }
 
-function combinedData(series: ParameterSeries[]) {
-  const rows = new Map<string, Record<string, string | number>>();
+type ChartRow = Record<string, string | number | [number, number]>;
+
+function combinedData(series: ParameterSeries[]): ChartRow[] {
+  const rows = new Map<string, ChartRow>();
   for (const item of series) {
     for (const point of item.data) {
       const row = rows.get(point.label) || { label: point.label };
       row[item.key] = point.value;
       if (point.baseline !== undefined) row[`${item.key}Baseline`] = point.baseline;
+      if (point.baselineUpper !== undefined && point.baselineLower !== undefined) {
+        row[`${item.key}Band`] = [point.baselineLower, point.baselineUpper];
+      }
       rows.set(point.label, row);
     }
   }
   return Array.from(rows.values()).sort((left, right) =>
     String(left.label).localeCompare(String(right.label), undefined, { numeric: true }),
   );
+}
+
+function hasBand(item: ParameterSeries) {
+  return item.data.some((point) => point.baselineUpper !== undefined);
 }
 
 function ChartText({ summary }: { summary: string }) {
@@ -177,7 +194,7 @@ export function TimeSeriesChart({ response }: { response: OceanResponse }) {
       </div>
       <div className="chart-canvas">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 14, right: 22, left: 4, bottom: 27 }}>
+          <ComposedChart data={data} margin={{ top: 14, right: 22, left: 4, bottom: 27 }}>
             <CartesianGrid {...grid} />
             <XAxis dataKey="label" {...axis} minTickGap={24} label={{ value: "Month", position: "insideBottom", offset: -17, ...labelStyle }} />
             {selected.map((item, index) => (
@@ -192,13 +209,16 @@ export function TimeSeriesChart({ response }: { response: OceanResponse }) {
             ))}
             <Tooltip contentStyle={tooltip} />
             {(selected.length > 1 || selected.some((item) => item.data.some((point) => point.baseline !== undefined))) && <Legend verticalAlign="top" height={30} iconType="plainline" />}
+            {selected.map((item) => hasBand(item) && (
+              <Area key={`${item.key}-band`} isAnimationActive={false} yAxisId={item.key} name={`${item.label} baseline ±1σ`} dataKey={`${item.key}Band`} type="monotone" stroke="none" fill={colours[item.key]} fillOpacity={0.1} connectNulls legendType="none" />
+            ))}
             {selected.map((item) => (
               <Line key={item.key} isAnimationActive={false} yAxisId={item.key} name={`${item.label} (${item.unit})`} dataKey={item.key} type="monotone" stroke={colours[item.key]} strokeWidth={3.25} dot={{ fill: colours[item.key], stroke: "#0D3157", strokeWidth: 2, r: 3.25 }} activeDot={{ r: 6, fill: colours[item.key] }} connectNulls />
             ))}
             {selected.map((item) => item.data.some((point) => point.baseline !== undefined) && (
               <Line key={`${item.key}-baseline`} isAnimationActive={false} yAxisId={item.key} name={`${item.label} production baseline`} dataKey={`${item.key}Baseline`} stroke={colours[item.key]} strokeWidth={1.75} strokeDasharray="8 6" dot={false} />
             ))}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <ChartText summary={response.chartSummary} />
