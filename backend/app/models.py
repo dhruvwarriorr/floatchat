@@ -54,12 +54,34 @@ class ChatRequest(BaseModel):
         return self
 
 
+class GeographicBounds(BaseModel):
+    """Canonical selection rectangle for a named region.
+
+    Populated from the backend ``REGION_BOXES`` source of truth so the frontend
+    map never re-derives or drifts from the scientific selection bounds.
+    """
+
+    south: float = Field(ge=-90, le=90)
+    west: float = Field(ge=-180, le=180)
+    north: float = Field(ge=-90, le=90)
+    east: float = Field(ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def validate_extent(self) -> GeographicBounds:
+        if self.south >= self.north:
+            raise ValueError("south must be less than north")
+        if self.west >= self.east:
+            raise ValueError("west must be less than east")
+        return self
+
+
 class QueryLocation(BaseModel):
     label: str
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     region_id: str | None = None
     radius_km: float = Field(default=100.0, ge=1.0, le=2000.0)
+    bounds: GeographicBounds | None = None
 
     @model_validator(mode="after")
     def require_coordinates_or_region(self) -> QueryLocation:
@@ -171,6 +193,8 @@ class ParameterResult(BaseModel):
     data_quality_warning: bool
     answer_explanation: str
     data_sufficiency: DataSufficiency
+    secondary_views: dict[str, Any] = Field(default_factory=dict)
+    supplementary_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatResponse(BaseModel):
@@ -188,6 +212,8 @@ class ChatResponse(BaseModel):
     parser_used: ParserUsed
     source: str
     results_by_parameter: dict[str, ParameterResult] = Field(default_factory=dict)
+    secondary_views: dict[str, Any] = Field(default_factory=dict)
+    supplementary_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ErrorDetail(BaseModel):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from app.models import Parameter, QueryType
@@ -299,3 +300,373 @@ def compute_current_mean(agg_data: dict[str, Any], query_type: QueryType) -> flo
     else:
         value = None
     return float(value) if value is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Supplementary scientific views.
+#
+# Every function below is best-effort: it returns ``None`` when the QC-passed
+# frame lacks the columns or density it needs. None of them replace the primary
+# aggregation, the QC boundary, or the evidence policy; they are additional
+# read-only visualisations derived from the same QC-passed observations.
+# ---------------------------------------------------------------------------
+
+MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+TS_DIAGRAM_LIMIT = 500
+
+
+def _calendar_month(frame: pd.DataFrame) -> pd.Series:
+    if "calendar_month" in frame:
+        return pd.to_numeric(frame["calendar_month"], errors="coerce")
+    return pd.to_datetime(frame["time"], utc=True, errors="coerce").dt.month
+
+
+def _per_profile_value(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    return (
+        df.groupby("profile_id", as_index=False)
+        .agg(
+            platform_number=("platform_number", "first"),
+            time=("time", "first"),
+            **{value_col: (value_col, "median")},
+        )
+        .dropna(subset=[value_col])
+    )
+
+
+def _seawater_density(temperature: pd.Series, salinity: pd.Series) -> pd.Series:
+    """Simplified Millero & Poisson (1981) surface density in kg/m³.
+
+    This is a rough at-surface approximation (pressure term omitted); it is used
+    only for a relative density-profile visualisation, never for a scientific
+    claim.
+    """
+
+    t = pd.to_numeric(temperature, errors="coerce")
+    s = pd.to_numeric(salinity, errors="coerce")
+    rho_w = (
+        999.842594
+        + 6.793952e-2 * t
+        - 9.095290e-3 * t**2
+        + 1.001685e-4 * t**3
+        - 1.120083e-6 * t**4
+        + 6.536332e-9 * t**5
+    )
+    coefficient = (
+        0.824493
+        - 4.0899e-3 * t
+        + 7.6438e-5 * t**2
+        - 8.2467e-7 * t**3
+        + 5.3875e-9 * t**4
+    )
+    return rho_w + coefficient * s
+
+
+def compute_ts_diagram(df: pd.DataFrame) -> dict[str, Any] | None:
+    if df.empty or not {"temp_adjusted", "psal_adjusted", "pres"}.issubset(df.columns):
+        return None
+    usable = df.dropna(subset=["temp_adjusted", "psal_adjusted"]).copy()
+    usable = usable.loc[pd.to_numeric(usable["temp_adjusted"], errors="coerce").notna()]
+    usable = usable.loc[pd.to_numeric(usable["psal_adjusted"], errors="coerce").notna()]
+    if usable.empty:
+        return None
+    if len(usable) > TS_DIAGRAM_LIMIT:
+        usable = usable.sample(TS_DIAGRAM_LIMIT, random_state=0)
+    points = [
+        {
+            "temperature": float(row.temp_adjusted),
+            "salinity": float(row.psal_adjusted),
+            "pressure": float(row.pres) if pd.notna(row.pres) else None,
+            "profile_id": str(row.profile_id),
+        }
+        for row in usable.itertuples(index=False)
+    ]
+    return {
+        "type": "ts_diagram",
+        "points": points,
+        "profile_count": int(usable["profile_id"].nunique()),
+        "float_count": int(usable["platform_number"].astype(str).nunique()),
+    }
+
+
+def compute_density_profile(df: pd.DataFrame) -> dict[str, Any] | None:
+    if df.empty or not {"temp_adjusted", "psal_adjusted", "pres"}.issubset(df.columns):
+        return None
+    usable = df.dropna(subset=["temp_adjusted", "psal_adjusted"]).copy()
+    usable = usable.loc[usable["pres"].between(0, 500, inclusive="both")]
+    if usable.empty:
+        return None
+    usable["density"] = _seawater_density(usable["temp_adjusted"], usable["psal_adjusted"])
+    usable = usable.dropna(subset=["density"])
+    if usable.empty:
+        return None
+    usable["depth_bin"] = pd.cut(
+        usable["pres"], bins=DEPTH_BINS, labels=DEPTH_LABELS, right=False, include_lowest=True
+    )
+    bins: list[dict[str, Any]] = []
+    for index, label in enumerate(DEPTH_LABELS):
+        subset = usable.loc[usable["depth_bin"].astype(str) == label]
+        if subset.empty:
+            continue
+        depth_min = DEPTH_BINS[index]
+        depth_max = 500.0 if index == len(DEPTH_LABELS) - 1 else DEPTH_BINS[index + 1]
+        bins.append(
+            {
+                "depth_bin": label,
+                "depth_mid": (depth_min + depth_max) / 2,
+                "density": float(subset["density"].median()),
+                "unit": "kg/m³",
+            }
+        )
+    return {"type": "density_profile", "bins": bins} if bins else None
+
+
+def compute_heat_content(df: pd.DataFrame, value_col: str) -> dict[str, Any] | None:
+    if df.empty or value_col != "temp_adjusted" or "pres" not in df.columns:
+        return None
+    upper = df.loc[df["pres"].between(0, 300, inclusive="both")].dropna(subset=[value_col])
+    if upper.empty:
+        return None
+    density, specific_heat = 1025.0, 3850.0
+    integrals: list[float] = []
+    for _profile_id, group in upper.groupby("profile_id"):
+        ordered = group.sort_values("pres")
+        pressures = ordered["pres"].to_numpy(dtype=float)
+        temperatures = ordered[value_col].to_numpy(dtype=float)
+        if len(pressures) < 2:
+            continue
+        integrals.append(float(np.trapezoid(temperatures, pressures)))
+    if not integrals:
+        return None
+    mean_integral = sum(integrals) / len(integrals)
+    heat_content = density * specific_heat * mean_integral / 1e6
+    return {
+        "type": "heat_content",
+        "value_mj_per_m2": float(heat_content),
+        "profile_count": len(integrals),
+        "depth_range": "0–300 dbar",
+    }
+
+
+def compute_hovmoller(
+    df: pd.DataFrame, value_col: str, parameter: Parameter
+) -> dict[str, Any] | None:
+    if df.empty or "pres" not in df.columns:
+        return None
+    usable = df.loc[df["pres"].between(0, 500, inclusive="both")].dropna(subset=[value_col]).copy()
+    if usable.empty:
+        return None
+    usable["month"] = (
+        pd.to_datetime(usable["time"], utc=True).dt.tz_convert(None).dt.to_period("M").astype(str)
+    )
+    usable["depth_bin"] = pd.cut(
+        usable["pres"], bins=DEPTH_BINS, labels=DEPTH_LABELS, right=False, include_lowest=True
+    )
+    grid: list[dict[str, Any]] = []
+    grouped = (
+        usable.dropna(subset=["depth_bin"])
+        .groupby(["month", "depth_bin"], observed=True)[value_col]
+        .median()
+        .reset_index()
+    )
+    depth_mid = {
+        label: (
+            DEPTH_BINS[index]
+            + (500.0 if index == len(DEPTH_LABELS) - 1 else DEPTH_BINS[index + 1])
+        )
+        / 2
+        for index, label in enumerate(DEPTH_LABELS)
+    }
+    for row in grouped.itertuples(index=False):
+        label = str(row.depth_bin)
+        grid.append(
+            {
+                "month": str(row.month),
+                "depth_bin": label,
+                "depth_mid": depth_mid.get(label),
+                "value": float(getattr(row, value_col)),
+            }
+        )
+    if not grid:
+        return None
+    return {
+        "type": "hovmoller",
+        "grid": grid,
+        "parameter": parameter.value,
+        "unit": _unit(parameter),
+    }
+
+
+def compute_seasonal_cycle(
+    df: pd.DataFrame, value_col: str, parameter: Parameter
+) -> dict[str, Any] | None:
+    if df.empty:
+        return None
+    per_profile = _per_profile_value(df, value_col)
+    if per_profile.empty:
+        return None
+    per_profile["calendar_month"] = pd.to_datetime(
+        per_profile["time"], utc=True
+    ).dt.tz_convert(None).dt.month
+    months: list[dict[str, Any]] = []
+    for month in range(1, 13):
+        subset = per_profile.loc[per_profile["calendar_month"] == month]
+        if subset.empty:
+            continue
+        values = subset[value_col]
+        months.append(
+            {
+                "month": month,
+                "month_label": MONTH_LABELS[month - 1],
+                "mean": float(values.mean()),
+                "std": float(values.std(ddof=1)) if len(values) > 1 else 0.0,
+                "count": int(len(values)),
+            }
+        )
+    if not months:
+        return None
+    return {
+        "type": "seasonal_cycle",
+        "months": months,
+        "parameter": parameter.value,
+        "unit": _unit(parameter),
+    }
+
+
+def compute_year_over_year(
+    df: pd.DataFrame, value_col: str, parameter: Parameter
+) -> dict[str, Any] | None:
+    if df.empty:
+        return None
+    per_profile = _per_profile_value(df, value_col)
+    if per_profile.empty:
+        return None
+    stamps = pd.to_datetime(per_profile["time"], utc=True).dt.tz_convert(None)
+    per_profile["year"] = stamps.dt.year
+    per_profile["calendar_month"] = stamps.dt.month
+    years: dict[str, list[dict[str, Any]]] = {}
+    grouped = (
+        per_profile.groupby(["year", "calendar_month"], as_index=False)[value_col].mean()
+    )
+    if grouped["year"].nunique() < 2:
+        return None
+    for row in grouped.itertuples(index=False):
+        year = str(int(row.year))
+        years.setdefault(year, []).append(
+            {
+                "month": int(row.calendar_month),
+                "month_label": MONTH_LABELS[int(row.calendar_month) - 1],
+                "value": float(getattr(row, value_col)),
+            }
+        )
+    for entries in years.values():
+        entries.sort(key=lambda item: item["month"])
+    return {
+        "type": "year_over_year",
+        "years": years,
+        "parameter": parameter.value,
+        "unit": _unit(parameter),
+    }
+
+
+def compute_anomaly_trend(
+    df: pd.DataFrame,
+    value_col: str,
+    parameter: Parameter,
+    baseline_df: Any,
+    *,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    region_id: str | None = None,
+) -> dict[str, Any] | None:
+    if df.empty or baseline_df is None:
+        return None
+    from app.services.anomaly import baseline_parameter_name, get_baseline_for_month, score_anomaly
+
+    baseline_parameter = baseline_parameter_name(parameter, QueryType.TIME_SERIES)
+    per_profile = _per_profile_value(df, value_col)
+    if per_profile.empty:
+        return None
+    stamps = pd.to_datetime(per_profile["time"], utc=True).dt.tz_convert(None)
+    per_profile["month"] = stamps.dt.to_period("M").astype(str)
+    monthly = per_profile.groupby("month", as_index=False)[value_col].mean().sort_values("month")
+    series: list[dict[str, Any]] = []
+    for row in monthly.itertuples(index=False):
+        month_str = str(row.month)
+        calendar_month = int(month_str[5:7])
+        baseline = get_baseline_for_month(
+            baseline_df,
+            baseline_parameter,
+            calendar_month,
+            latitude=latitude,
+            longitude=longitude,
+            region_id=region_id,
+        )
+        if baseline is None:
+            continue
+        scored = score_anomaly(float(getattr(row, value_col)), baseline, parameter)
+        if scored is None:
+            continue
+        series.append(
+            {
+                "month": month_str,
+                "z_score": float(scored.z_score),
+                "label": scored.label,
+                "current_value": float(scored.current_value),
+                "baseline_mean": float(scored.baseline_mean),
+            }
+        )
+    if not series:
+        return None
+    return {
+        "type": "anomaly_trend",
+        "series": series,
+        "parameter": parameter.value,
+        "unit": _unit(parameter),
+    }
+
+
+def compute_supplementary_views(
+    df: pd.DataFrame,
+    parameter: Parameter,
+    baseline_df: Any = None,
+    value_col: str | None = None,
+    *,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    region_id: str | None = None,
+) -> dict[str, Any]:
+    """Run every supplementary view, isolating individual failures."""
+
+    if df.empty:
+        return {}
+    column = value_col or ("psal_adjusted" if parameter is Parameter.SALINITY else "temp_adjusted")
+    results: dict[str, Any] = {}
+    attempts: list[tuple[str, Any]] = [
+        ("ts_diagram", lambda: compute_ts_diagram(df)),
+        ("density_profile", lambda: compute_density_profile(df)),
+        ("heat_content", lambda: compute_heat_content(df, column)),
+        ("hovmoller", lambda: compute_hovmoller(df, column, parameter)),
+        ("seasonal_cycle", lambda: compute_seasonal_cycle(df, column, parameter)),
+        ("year_over_year", lambda: compute_year_over_year(df, column, parameter)),
+        (
+            "anomaly_trend",
+            lambda: compute_anomaly_trend(
+                df,
+                column,
+                parameter,
+                baseline_df,
+                latitude=latitude,
+                longitude=longitude,
+                region_id=region_id,
+            ),
+        ),
+    ]
+    for name, builder in attempts:
+        try:
+            result = builder()
+        except Exception:
+            result = None
+        if result is not None:
+            results[name] = result
+    return results

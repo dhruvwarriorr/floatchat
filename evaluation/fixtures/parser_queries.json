@@ -19,8 +19,14 @@
   {"id":"alias-bombay-1","query":"Temperature near Bombay in 2020","expected":{"query_type":"profile","parameter":"temperature","location":"Mumbai coast","date_from":"2020-01-01","date_to":"2020-12-31"}},
   {"id":"alias-cochin-1","query":"Salt profile near Cochin 2020","expected":{"query_type":"profile","parameter":"salinity","location":"Kochi coast","date_from":"2020-01-01","date_to":"2020-12-31"}},
   {"id":"radius-1","query":"Temperature near Mumbai within 50 km in 2024","expected":{"query_type":"profile","parameter":"temperature","location":"Mumbai coast","date_from":"2024-01-01","date_to":"2024-12-31","radius_km":50}},
+  {"id":"profile-depth-goa-1","query":"Temperature at 200 m near Goa in 2021","expected":{"query_type":"profile","parameter":"temperature","location":"Goa coast","date_from":"2021-01-01","date_to":"2021-12-31"}},
+  {"id":"casual-salty-goa-1","query":"How salty is the water near Goa in 2023","expected":{"query_type":"profile","parameter":"salinity","location":"Goa coast","date_from":"2023-01-01","date_to":"2023-12-31"}},
+  {"id":"anomaly-arabian-2","query":"Is the Arabian Sea warmer than normal in 2024","expected":{"query_type":"time_series","parameter":"temperature","location":"Arabian Sea","include_anomaly":true,"date_from":"2024-01-01","date_to":"2024-12-31"}},
+  {"id":"both-goa-1","query":"Compare temperature and salinity near Goa 2020-2024","expected":{"query_type":"time_series","parameter":"all","location":"Goa coast","date_from":"2020-01-01","date_to":"2024-12-31"}},
   {"id":"unsupported-rain","query":"Will it rain near Mumbai tomorrow?","expected_error":"UnsupportedQuery"},
   {"id":"unsupported-oxygen","query":"Show oxygen near Mumbai in 2024","expected_error":"UnsupportedQuery"},
   {"id":"unsupported-location","query":"Show temperature in an unknown place in 2024","expected_error":"UnsupportedQuery"},
-  {"id":"malformed-date","query":"Temperature near Mumbai in 1999","expected_error":"UnsupportedQuery"}
+  {"id":"malformed-date","query":"Temperature near Mumbai in 1999","expected_error":"UnsupportedQuery"},
+  {"id":"unsupported-cyclone","query":"Cyclone track near the Bay of Bengal","expected_error":"UnsupportedQuery"},
+  {"id":"unsupported-fishing","query":"Fishing zones near Kochi","expected_error":"UnsupportedQuery"}
 ]

@@ -20,7 +20,11 @@ from app.models import (
     QueryParams,
     QueryType,
 )
-from app.services.aggregation import aggregate, compute_current_mean
+from app.services.aggregation import (
+    aggregate,
+    compute_current_mean,
+    compute_supplementary_views,
+)
 from app.services.anomaly import (
     baseline_parameter_name,
     get_baseline_for_month,
@@ -160,9 +164,11 @@ def _build_parameter_result(
     grade_result = compute_evidence_grade(qc_result, baseline_n, baseline_std, thresholds)
     current_value = compute_current_mean(agg_data, params.query_type)
     anomaly_result = None
+    # The Z-score is computed whenever evidence permits and a baseline exists.
+    # ``include_anomaly`` only influences summary emphasis downstream, not whether
+    # the score is produced.
     if (
-        params.include_anomaly
-        and grade_result.grade is not EvidenceGrade.INSUFFICIENT
+        grade_result.grade is not EvidenceGrade.INSUFFICIENT
         and baseline is not None
         and current_value is not None
     ):
@@ -189,6 +195,31 @@ def _build_parameter_result(
         and thresholds.min_qc_pass_rate is not None
         and qc_result.qc_pass_rate < thresholds.min_qc_pass_rate
     )
+    # Also compute the other supported aggregation types so the UI can offer
+    # every available view of the same QC-passed data (best effort).
+    secondary_views: dict[str, object] = {}
+    for alternate_type in (
+        QueryType.PROFILE,
+        QueryType.TIME_SERIES,
+        QueryType.REGIONAL_AVERAGE,
+    ):
+        if alternate_type is params.query_type:
+            continue
+        try:
+            alternate_agg = aggregate(qc_result, alternate_type, parameter)
+        except Exception:
+            continue
+        if alternate_agg.get("current_value") is not None:
+            secondary_views[alternate_type.value] = alternate_agg
+    supplementary_data = compute_supplementary_views(
+        qc_result.retained,
+        parameter,
+        baseline_df,
+        qc_result.value_col,
+        latitude=params.location.latitude,
+        longitude=params.location.longitude,
+        region_id=params.location.region_id,
+    )
     return ParameterResult(
         parameter=parameter,
         summary=_summary(parameter_params, agg_data, grade_result.grade),
@@ -204,6 +235,8 @@ def _build_parameter_result(
             coverage=coverage,
             coverage_radius_km=None if params.location.region_id else params.location.radius_km,
         ),
+        secondary_views=secondary_views,
+        supplementary_data=supplementary_data,
     )
 
 
@@ -255,6 +288,8 @@ def chat(request: ChatRequest) -> JSONResponse:
             parser_used=params.parser_used,
             source=source,
             results_by_parameter=results,
+            secondary_views=primary.secondary_views,
+            supplementary_data=primary.supplementary_data,
         )
         return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
     except NoDataFound:
