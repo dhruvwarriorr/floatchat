@@ -154,7 +154,7 @@ TEMPERATURE_PHRASES = (
 BOTH_PARAMETER_PHRASES = (
     "temperature and salinity", "salinity and temperature", "temp and salinity",
     "both parameters", "both measurements", "both variables",
-    "water properties", "water conditions",
+    "water properties", "water conditions", "how's the water", "how is the water",
 )
 
 PROFILE_PHRASES = (
@@ -165,7 +165,7 @@ TIME_SERIES_PHRASES = (
     "time series", "trend", "over time", "over the years", "history", "historical",
     "historically", "changing", "changed", "change", "increasing", "decreasing",
     "rising", "falling", "compare", "comparison", "compared with normal",
-    "compared to normal", "warmer than usual", "plot",
+    "compared to normal", "warmer than usual",
 )
 REGIONAL_PHRASES = (
     "average across", "mean for the region", "average", "mean", "regional",
@@ -179,7 +179,7 @@ ANOMALY_PHRASES = (
     "compared with normal", "compared to normal", "baseline", "typical",
     "historical average", "is it warming", "is it cooling", "has it changed",
     "getting saltier", "getting fresher", "saltier than", "fresher than",
-    "abnormal", "unusually",
+    "abnormal", "unusually", "compare", "comparison",
 )
 
 OUT_OF_SCOPE_TERMS = (
@@ -187,12 +187,13 @@ OUT_OF_SCOPE_TERMS = (
     "wave height", "waves", "tide", "tides", "fishing", "chlorophyll",
     "oxygen", "pollution", "navigation route", "shipping route", "nitrate",
     "current speed", "sea level rise", "sea level",
+    "shell command", "execute command", "run a command", "run shell",
 )
 
 DEPTH_PATTERN = re.compile(r"\b(\d{1,4}(?:\.\d+)?)\s*(m|metre|meter|metres|meters|dbar)\b")
 RADIUS_PATTERN = re.compile(
     r"\b(?:within|radius(?:\s+of)?)\s+(\d+(?:\.\d+)?)\s*(?:km|kilometre|kilometres|kilometer|kilometers)\b"  # noqa: E501
-    r"|\b(\d+(?:\.\d+)?)\s*km\s+(?:around|radius|from)\b"
+    r"|\b(\d+(?:\.\d+)?)\s*(?:km|kilometre|kilometres|kilometer|kilometers)\s+(?:around|radius|from)\b"  # noqa: E501
 )
 
 # --- Query JSON schema (shared by every provider integration) -----------------
@@ -252,7 +253,10 @@ def build_system_prompt(today: date | None = None) -> str:
 
     reference = resolve_today(today)
     region_ids = ", ".join(REGION_BOXES)
-    example_places = ", ".join(sorted({label for *_rest, label in GAZETTEER.values()})[:12])
+    canonical_places = "; ".join(
+        f"{alias}=({latitude:g},{longitude:g}; {label})"
+        for alias, (latitude, longitude, label) in sorted(GAZETTEER.items())
+    )
     return f"""You are FloatChat-Lite's query planner. Convert exactly one natural-language
 question about Indian Ocean ARGO observations into the supplied JSON schema.
 
@@ -305,7 +309,7 @@ not widen a region. Do not enlarge a radius to find data.
 
 LOCATION: exactly one of a point (lat/lon, region_id null) or a named region
 (region_id set, lat/lon null). For known places use the application's canonical
-coordinates ({example_places}, and more). Named regions: {region_ids}.
+coordinates listed here: {canonical_places}. Named regions: {region_ids}.
 If a location cannot be resolved to the Indian Ocean, return unsupported.
 
 UNSUPPORTED: return query_type="unsupported" for weather forecasts, rainfall,

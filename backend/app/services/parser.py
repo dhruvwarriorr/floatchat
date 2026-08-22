@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
 import re
+import unicodedata
 from calendar import monthrange
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -26,6 +30,8 @@ from app.services.parser_policy import (  # re-exported for stable imports
     REGION_BOXES,
     REGION_NAMES,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "GAZETTEER",
@@ -77,6 +83,20 @@ class SemanticValidationError(UnsupportedQuery):
     category = "semantic_validation"
 
 
+@dataclass(frozen=True)
+class ParserHints:
+    normalized_query: str
+    parameters: list[Parameter]
+    location: QueryLocation
+    query_type: QueryType
+    date_from: str
+    date_to: str
+    month: int | None
+    year_start: int
+    year_end: int
+    include_anomaly: bool
+
+
 LAT_LON_PATTERN = re.compile(
     r"(?P<lat>\d{1,2}(?:\.\d+)?)\s*[°º]?\s*(?P<lat_dir>[NS])"
     r"\s*[,;/]?\s*"
@@ -86,7 +106,22 @@ LAT_LON_PATTERN = re.compile(
 
 
 def _normalize(raw_query: str) -> str:
-    return re.sub(r"\s+", " ", raw_query.lower().replace("–", "-").replace("—", "-")).strip()
+    normalized = unicodedata.normalize("NFKC", raw_query)
+    normalized = normalized.translate(
+        str.maketrans(
+            {
+                "–": "-",
+                "—": "-",
+                "−": "-",
+                "’": "'",
+                "‘": "'",
+                "“": '"',
+                "”": '"',
+                "\u00a0": " ",
+            }
+        )
+    )
+    return re.sub(r"\s+", " ", normalized.casefold()).strip()
 
 
 def _phrase_pattern(phrase: str) -> re.Pattern[str]:
@@ -125,6 +160,8 @@ def extract_query_type(
         return QueryType.PROFILE
     if _any(query, policy.TIME_SERIES_PHRASES):
         return QueryType.TIME_SERIES
+    if re.search(r"\b20\d{2}\s*(?:-|to|through)\s*20\d{2}\b", query):
+        return QueryType.TIME_SERIES
     # Comparison/anomaly intent is temporal and outranks whole-region intent,
     # unless the user explicitly asked for a regional average.
     if extract_anomaly_intent(query) and not _any(query, policy.REGIONAL_PHRASES):
@@ -139,7 +176,14 @@ def extract_query_type(
 
 
 def extract_anomaly_intent(query: str) -> bool:
-    return _any(query, policy.ANOMALY_PHRASES)
+    if _any(query, policy.ANOMALY_PHRASES):
+        return True
+    return bool(
+        re.search(
+            r"\b(?:is|are|has|have)\b[^?]*\b(?:rising|falling|increasing|decreasing)\b",
+            query,
+        )
+    )
 
 
 def extract_radius(query: str) -> float:
@@ -147,8 +191,13 @@ def extract_radius(query: str) -> float:
     if match:
         value = match.group(1) or match.group(2)
         radius = float(value)
-        return min(max(radius, policy.MIN_RADIUS_KM), policy.MAX_RADIUS_KM)
-    return get_settings().default_radius_km
+        if not math.isfinite(radius) or not policy.MIN_RADIUS_KM <= radius <= policy.MAX_RADIUS_KM:
+            raise UnsupportedQuery(
+                f"The search radius must be between {policy.MIN_RADIUS_KM:g} and "
+                f"{policy.MAX_RADIUS_KM:g} km."
+            )
+        return radius
+    return policy.DEFAULT_RADIUS_KM
 
 
 # --- Dates -------------------------------------------------------------------
@@ -285,6 +334,7 @@ def _region_location(region_id: str, label: str, radius_km: float) -> QueryLocat
         region_id=region_id,
         radius_km=radius_km,
         bounds=GeographicBounds(south=lat_min, west=lon_min, north=lat_max, east=lon_max),
+        coordinate_precision=2,
     )
 
 
@@ -298,6 +348,13 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
         if coordinate_match.group("lon_dir").upper() == "W":
             longitude *= -1
         _validate_envelope(latitude, longitude)
+        coordinate_precision = min(
+            4,
+            max(
+                len(value.partition(".")[2]) if "." in value else 0
+                for value in (coordinate_match.group("lat"), coordinate_match.group("lon"))
+            ),
+        )
         return QueryLocation(
             label=(
                 f"{abs(latitude):g}°{'N' if latitude >= 0 else 'S'}, "
@@ -306,10 +363,11 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
             latitude=latitude,
             longitude=longitude,
             radius_km=radius_km,
+            coordinate_precision=coordinate_precision,
         )
 
     for name in sorted(REGION_NAMES, key=len, reverse=True):
-        if name in query:
+        if re.search(rf"\b{re.escape(name)}\b", query):
             region_id, label = REGION_NAMES[name]
             return _region_location(region_id, label, radius_km)
 
@@ -321,6 +379,7 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
                 latitude=latitude,
                 longitude=longitude,
                 radius_km=radius_km,
+                coordinate_precision=2,
             )
 
     return None
@@ -329,7 +388,7 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
 # --- Deterministic parser ----------------------------------------------------
 
 
-def parse_rule_based(raw_query: str) -> QueryParams:
+def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
     query = _normalize(raw_query)
     if not query:
         raise UnsupportedQuery("The question was empty.")
@@ -337,27 +396,43 @@ def parse_rule_based(raw_query: str) -> QueryParams:
         raise UnsupportedQuery("The question is outside temperature and salinity exploration.")
 
     parameters = extract_parameters(query)
-    parameter = Parameter.ALL if len(parameters) > 1 else parameters[0]
     radius_km = extract_radius(query)
     location = extract_location(query, radius_km)
     if location is None:
         raise UnsupportedQuery("Include a named Indian Ocean location or latitude/longitude pair.")
 
     query_type = extract_query_type(query, parameters, location)
-    date_from, date_to, month, year_start, year_end = extract_date_range(query)
+    date_from, date_to, month, year_start, year_end = extract_date_range(query, today=today)
     anomaly_requested = extract_anomaly_intent(query)
-    return QueryParams(
-        query_type=query_type,
-        parameter=parameter,
+    return ParserHints(
+        normalized_query=query,
         parameters=parameters,
         location=location,
-        year_start=year_start,
-        year_end=year_end,
-        month=month,
-        anomaly_requested=anomaly_requested,
+        query_type=query_type,
         date_from=date_from,
         date_to=date_to,
+        month=month,
+        year_start=year_start,
+        year_end=year_end,
         include_anomaly=anomaly_requested,
+    )
+
+
+def parse_rule_based(raw_query: str) -> QueryParams:
+    hints = _extract_hints(raw_query)
+    parameter = Parameter.ALL if len(hints.parameters) > 1 else hints.parameters[0]
+    return QueryParams(
+        query_type=hints.query_type,
+        parameter=parameter,
+        parameters=hints.parameters,
+        location=hints.location,
+        year_start=hints.year_start,
+        year_end=hints.year_end,
+        month=hints.month,
+        anomaly_requested=hints.include_anomaly,
+        date_from=hints.date_from,
+        date_to=hints.date_to,
+        include_anomaly=hints.include_anomaly,
         parser_used=ParserUsed.RULE_BASED,
     )
 
@@ -411,9 +486,69 @@ def _semantic_dates(payload: dict[str, Any]) -> tuple[str, str]:
     return date_from, date_to
 
 
-def _build_params(payload: dict[str, Any], parser_used: ParserUsed) -> QueryParams:
+def _validate_provider_schema(payload: Any) -> dict[str, Any]:
+    """Validate the provider JSON against the exact small planner schema.
+
+    Provider-native structured output is still requested, but this application
+    validation is authoritative because not every compatible endpoint enforces
+    JSON Schema in the same way.
+    """
+
     if not isinstance(payload, dict):
         raise SchemaViolation("The provider output is not a JSON object.")
+    required = set(QUERY_SCHEMA["required"])
+    supplied = set(payload)
+    if supplied != required:
+        raise SchemaViolation("The provider output did not match the required fields exactly.")
+
+    if not isinstance(payload["query_type"], str):
+        raise SchemaViolation("The provider returned a non-string query type.")
+    if payload["query_type"] not in {*policy.SUPPORTED_QUERY_TYPES, "unsupported"}:
+        raise SchemaViolation("The provider returned an unsupported query type.")
+
+    parameters = payload["parameters"]
+    if not isinstance(parameters, list) or not 1 <= len(parameters) <= 2:
+        raise SchemaViolation("The provider returned an invalid parameters array.")
+    if any(
+        not isinstance(value, str) or value not in policy.SUPPORTED_PARAMETERS
+        for value in parameters
+    ):
+        raise SchemaViolation("The provider returned an unsupported parameter.")
+
+    for key in ("lat", "lon"):
+        value = payload[key]
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
+            raise SchemaViolation(f"The provider returned an invalid {key} value.")
+    region_id = payload["region_id"]
+    if region_id is not None and (not isinstance(region_id, str) or region_id not in REGION_BOXES):
+        raise SchemaViolation("The provider returned an unsupported named region.")
+    if not isinstance(payload["location_label"], str):
+        raise SchemaViolation("The provider returned an invalid location label.")
+    if not isinstance(payload["date_from"], str) or not isinstance(payload["date_to"], str):
+        raise SchemaViolation("The provider returned non-string dates.")
+    radius = payload["radius_km"]
+    if (
+        isinstance(radius, bool)
+        or not isinstance(radius, (int, float))
+        or not math.isfinite(radius)
+    ):
+        raise SchemaViolation("The provider returned a non-numeric radius.")
+    if not isinstance(payload["include_anomaly"], bool):
+        raise SchemaViolation("The provider returned a non-boolean anomaly flag.")
+    return payload
+
+
+def _build_params(
+    payload: dict[str, Any],
+    parser_used: ParserUsed,
+    *,
+    hints: ParserHints | None = None,
+) -> QueryParams:
+    payload = _validate_provider_schema(payload)
     if str(payload.get("query_type", "")).lower() in {"unsupported", "out_of_scope"}:
         raise UnsupportedQuery("The provider marked this query as out of scope.")
     try:
@@ -459,6 +594,7 @@ def _build_params(payload: dict[str, Any], parser_used: ParserUsed) -> QueryPara
             latitude=latitude,
             longitude=longitude,
             radius_km=radius_km,
+            coordinate_precision=2,
         )
 
     date_from, date_to = _semantic_dates(payload)
@@ -466,7 +602,7 @@ def _build_params(payload: dict[str, Any], parser_used: ParserUsed) -> QueryPara
     year_end = int(date_to[:4])
     month = int(date_from[5:7]) if date_from[:7] == date_to[:7] else None
     include_anomaly = bool(payload.get("include_anomaly", False))
-    return QueryParams(
+    params = QueryParams(
         query_type=query_type,
         parameter=parameter,
         parameters=parameters,
@@ -481,20 +617,43 @@ def _build_params(payload: dict[str, Any], parser_used: ParserUsed) -> QueryPara
         parser_used=parser_used,
     )
 
+    if hints is None:
+        return params
 
-def _planner_prompt() -> str:
-    return f"{policy.build_system_prompt()}\n\nExamples:\n{policy.few_shot_text()}"
+    if params.location.region_id != hints.location.region_id:
+        raise SemanticValidationError("The provider contradicted the canonical location mode.")
+    if params.parameters != hints.parameters:
+        raise SemanticValidationError(
+            "The provider contradicted the deterministic parameter hints."
+        )
+    if params.query_type is not hints.query_type:
+        raise SemanticValidationError(
+            "The provider contradicted the deterministic query-type hints."
+        )
+    if (params.date_from, params.date_to) != (hints.date_from, hints.date_to):
+        raise SemanticValidationError("The provider contradicted the deterministic date hints.")
+    if params.include_anomaly is not hints.include_anomaly:
+        raise SemanticValidationError("The provider contradicted the deterministic anomaly hints.")
+    if not math.isclose(
+        params.location.radius_km,
+        hints.location.radius_km,
+        rel_tol=0,
+        abs_tol=1e-9,
+    ):
+        raise SemanticValidationError("The provider contradicted the deterministic radius hint.")
+
+    # Application geography wins over model coordinates/labels. This prevents a
+    # valid-looking provider response from drifting a known coast or region.
+    return params.model_copy(update={"location": hints.location})
+
+
+def _planner_prompt(today: date | None = None) -> str:
+    return f"{policy.build_system_prompt(today)}\n\nExamples:\n{policy.few_shot_text(today)}"
 
 
 def _configured_key() -> tuple[str, str] | None:
-    if key := os.getenv("GEMINI_API_KEY"):
-        return "gemini", key
     if key := os.getenv("FLOATCHAT_LLM_API_KEY"):
         return os.getenv("LLM_PROVIDER", "gemini").lower(), key
-    if key := os.getenv("OPENAI_API_KEY"):
-        return "openai", key
-    if key := os.getenv("ANTHROPIC_API_KEY"):
-        return "anthropic", key
     return None
 
 
@@ -536,13 +695,15 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
 
     provider, api_key = configuration
     timeout = timeout if timeout is not None else get_settings().llm_timeout
-    system_prompt = _planner_prompt()
+    reference_date = date.today()
+    hints = _extract_hints(raw_query, today=reference_date)
+    system_prompt = _planner_prompt(reference_date)
     try:
         if provider == "gemini":
             base_url = os.getenv(
                 "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
             ).rstrip("/")
-            model = os.getenv("FLOATCHAT_LLM_MODEL") or os.getenv("LLM_MODEL") or "gemini-2.5-flash"
+            model = os.getenv("LLM_MODEL") or "gemini-2.5-flash"
             if not re.fullmatch(r"[A-Za-z0-9._-]+", model):
                 raise SchemaViolation("Gemini model name contains unsafe characters")
             style = os.getenv("GEMINI_API_STYLE", "generate_content").lower()
@@ -586,9 +747,7 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
                     "x-api-key": api_key,
                 },
                 json={
-                    "model": os.getenv("FLOATCHAT_LLM_MODEL")
-                    or os.getenv("LLM_MODEL")
-                    or "claude-3-5-haiku-latest",
+                    "model": os.getenv("LLM_MODEL") or "claude-3-5-haiku-latest",
                     "max_tokens": 500,
                     "temperature": 0,
                     "system": system_prompt,
@@ -600,7 +759,7 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
             content = response.json()["content"][0]["text"]
         elif provider == "openai":
             base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-            model = os.getenv("FLOATCHAT_LLM_MODEL") or os.getenv("LLM_MODEL") or "gpt-4o-mini"
+            model = os.getenv("LLM_MODEL") or "gpt-4o-mini"
             style = os.getenv("LLM_API_STYLE") or (
                 "responses" if base_url == "https://api.openai.com/v1" else "chat_completions"
             )
@@ -661,7 +820,7 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
         else:
             raise SchemaViolation("Unsupported LLM provider")
         payload = json.loads(_strip_json_fence(content))
-        return _build_params(payload, ParserUsed.LLM)
+        return _build_params(payload, ParserUsed.LLM, hints=hints)
     except UnsupportedQuery:
         raise  # already classified (provider/schema/semantic/unsupported)
     except httpx.TimeoutException as exc:
@@ -682,8 +841,8 @@ def parse_query(raw_query: str) -> QueryParams:
     if _configured_key() is not None:
         try:
             return parse_llm(raw_query)
-        except UnsupportedQuery:
-            pass
+        except UnsupportedQuery as exc:
+            logger.warning("Optional query planner fell back; category=%s", exc.category)
         except Exception:
-            pass
+            logger.warning("Optional query planner fell back; category=unexpected_provider_failure")
     return parse_rule_based(raw_query)

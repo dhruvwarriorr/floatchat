@@ -30,7 +30,7 @@ make setup
 make check
 ```
 
-For Gemini parsing, copy `.env.example` to `.env` and set either `GEMINI_API_KEY` or the existing `FLOATCHAT_LLM_API_KEY`. Keep `LLM_PROVIDER=gemini` and a Gemini model such as `gemini-2.5-flash`. The key is loaded only by FastAPI and must never use a `VITE_` prefix. If Gemini is missing, times out, reaches quota, or returns invalid output, the response safely discloses `parser_used=rule_based`.
+For optional LLM parsing, copy `.env.example` to `.env` and set the single server-side `FLOATCHAT_LLM_API_KEY`. Keep `LLM_PROVIDER=gemini` and a Gemini model such as `gemini-2.5-flash`, or select one of the documented compatible providers with the same key variable. The key is loaded only by FastAPI and must never use a `VITE_` prefix. If the provider is missing, times out, reaches quota, or returns invalid output, the response safely discloses `parser_used=rule_based`.
 
 Run the API and web app in separate terminals:
 
@@ -43,6 +43,8 @@ make dev-web
 - API docs: `http://localhost:8000/docs`
 - Liveness: `http://localhost:8000/health/live`
 - Artifact/release readiness: `http://localhost:8000/health/ready`
+
+The Vite development server proxies `/chat` and `/health` to the local API. A production build uses the page's own origin by default, avoiding a browser-side `localhost:8000` dependency; set `VITE_API_URL` only for an intentional split-origin deployment.
 
 Suggested successful local queries:
 

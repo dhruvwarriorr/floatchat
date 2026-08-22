@@ -17,7 +17,7 @@
   {"id":"regional-bob-1","query":"Mean salinity across the Bay of Bengal in 2023","expected":{"query_type":"regional_average","parameter":"salinity","location":"Bay of Bengal","date_from":"2023-01-01","date_to":"2023-12-31"}},
   {"id":"regional-lakshadweep-1","query":"Regional temperature average in Lakshadweep Sea 2021","expected":{"query_type":"regional_average","parameter":"temperature","location":"Lakshadweep Sea","date_from":"2021-01-01","date_to":"2021-12-31"}},
   {"id":"alias-bombay-1","query":"Temperature near Bombay in 2020","expected":{"query_type":"profile","parameter":"temperature","location":"Mumbai coast","date_from":"2020-01-01","date_to":"2020-12-31"}},
-  {"id":"alias-cochin-1","query":"Salt profile near Cochin 2020","expected":{"query_type":"profile","parameter":"salinity","location":"Kochi coast","date_from":"2020-01-01","date_to":"2020-12-31"}},
+  {"id":"casual-water-goa-1","query":"How’s the water near Goa?","expected":{"query_type":"profile","parameter":"all","location":"Goa coast"}},
   {"id":"radius-1","query":"Temperature near Mumbai within 50 km in 2024","expected":{"query_type":"profile","parameter":"temperature","location":"Mumbai coast","date_from":"2024-01-01","date_to":"2024-12-31","radius_km":50}},
   {"id":"profile-depth-goa-1","query":"Temperature at 200 m near Goa in 2021","expected":{"query_type":"profile","parameter":"temperature","location":"Goa coast","date_from":"2021-01-01","date_to":"2021-12-31"}},
   {"id":"casual-salty-goa-1","query":"How salty is the water near Goa in 2023","expected":{"query_type":"profile","parameter":"salinity","location":"Goa coast","date_from":"2023-01-01","date_to":"2023-12-31"}},

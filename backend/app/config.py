@@ -7,6 +7,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.services.parser_policy import DEFAULT_RADIUS_KM
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(REPOSITORY_ROOT / ".env", override=False)
 
@@ -60,7 +62,7 @@ def get_settings() -> Settings:
         data_dir=_project_path(os.getenv("FLOATCHAT_DATA_DIR", "data")),
         static_dir=_project_path(os.getenv("FLOATCHAT_STATIC_DIR", "frontend/dist")),
         llm_timeout=float(os.getenv("FLOATCHAT_LLM_TIMEOUT_SECONDS", "8")),
-        default_radius_km=float(os.getenv("DEFAULT_RADIUS_KM", "100")),
+        default_radius_km=DEFAULT_RADIUS_KM,
         grade_thresholds=EvidenceGradeThresholds(),
         cors_origins=cors_origins,
     )

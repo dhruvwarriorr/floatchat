@@ -404,6 +404,8 @@ def compute_ts_diagram(df: pd.DataFrame) -> dict[str, Any] | None:
     usable = usable.loc[pd.to_numeric(usable["psal_adjusted"], errors="coerce").notna()]
     if usable.empty:
         return None
+    profile_count = int(usable["profile_id"].nunique())
+    float_count = int(usable["platform_number"].astype(str).nunique())
     if len(usable) > TS_DIAGRAM_LIMIT:
         usable = usable.sample(TS_DIAGRAM_LIMIT, random_state=0)
     points = [
@@ -418,8 +420,8 @@ def compute_ts_diagram(df: pd.DataFrame) -> dict[str, Any] | None:
     return {
         "type": "ts_diagram",
         "points": points,
-        "profile_count": int(usable["profile_id"].nunique()),
-        "float_count": int(usable["platform_number"].astype(str).nunique()),
+        "profile_count": profile_count,
+        "float_count": float_count,
     }
 
 
@@ -665,6 +667,7 @@ def compute_supplementary_views(
     parameter: Parameter,
     baseline_df: Any = None,
     value_col: str | None = None,
+    paired_df: pd.DataFrame | None = None,
     *,
     latitude: float | None = None,
     longitude: float | None = None,
@@ -677,8 +680,11 @@ def compute_supplementary_views(
     column = value_col or ("psal_adjusted" if parameter is Parameter.SALINITY else "temp_adjusted")
     results: dict[str, Any] = {}
     attempts: list[tuple[str, Any]] = [
-        ("ts_diagram", lambda: compute_ts_diagram(df)),
-        ("density_profile", lambda: compute_density_profile(df)),
+        ("ts_diagram", lambda: compute_ts_diagram(paired_df) if paired_df is not None else None),
+        (
+            "density_profile",
+            lambda: compute_density_profile(paired_df) if paired_df is not None else None,
+        ),
         ("heat_content", lambda: compute_heat_content(df, column)),
         ("hovmoller", lambda: compute_hovmoller(df, column, parameter)),
         ("seasonal_cycle", lambda: compute_seasonal_cycle(df, column, parameter)),

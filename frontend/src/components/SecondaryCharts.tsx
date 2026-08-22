@@ -37,6 +37,10 @@ function SecondaryChart({
   return (
     <section className="chart-block" aria-label={`${TITLES[view.type]} of the same data`}>
       <p className="secondary-chart-title">{TITLES[view.type]}</p>
+      <p className="secondary-chart-context">
+        {view.current_value?.toFixed(2)} {view.unit} representative value • same QC-passed selection,
+        regrouped as {TITLES[view.type].toLowerCase()}
+      </p>
       <div className="secondary-chart-canvas">
         <ResponsiveContainer width="100%" height="100%">
           {vertical ? (
@@ -58,6 +62,7 @@ function SecondaryChart({
           )}
         </ResponsiveContainer>
       </div>
+      <p className="secondary-chart-method">{view.aggregation_method}</p>
     </section>
   );
 }

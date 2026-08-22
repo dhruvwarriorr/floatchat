@@ -38,7 +38,7 @@ graph TD
 | Backend / API | Python 3.10+, FastAPI | Async-friendly, minimal boilerplate, fast to stand up endpoints in a hackathon timeframe |
 | Query Parsing | Direct LLM API calls (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) — no LangChain | Direct calls mean fewer abstraction layers and failure modes than a framework; easier to debug live |
 | Data Processing | pandas, NumPy | Standard scientific Python stack for validating INCOIS CSV exports and producing query-able tables |
-| Anomaly Model | scikit-learn (Z-score helpers), no Isolation Forest | Z-score vs. climatology is simple to implement, explain to judges, and validate in 2 days |
+| Anomaly Model | NumPy Z-score calculation, no Isolation Forest | Z-score vs. climatology is simple to implement, explain to judges, and validate in 2 days |
 | Data Storage | CSV/Parquet files (preprocessed from reviewed INCOIS CSV exports), no MongoDB | Zero-config, fast, nothing to break on demo day; the dataset is small and read-heavy, not written to live |
 | Deployment | Hugging Face Spaces | Proven path used successfully by SIH25040 (2025) teams |
 | Auth | None | Out of scope — single-user demo tool, no accounts or persistence of user data |
@@ -56,13 +56,13 @@ graph TD
 - **Depends on:** LLM API provider, Data Layer, Anomaly Model, Explainability Layer.
 
 ### 4.3 LLM Query Parser
-- **Responsibility:** Converts free-text queries into structured parameters (`query_type`, `lat`, `lon`, `parameter`, `date_from`, `date_to`, `include_anomaly`) via a direct LLM API call using the prompt in PRD Appendix A equivalent. Tags its own output `parser_used: "llm"`.
+- **Responsibility:** May propose exact-schema structured parameters (`query_type`, `location`, `parameter`, `date_from`, `date_to`, `include_anomaly`) from free text. Unicode normalization and deterministic hints run first; the proposal is rejected if its schema is not exact or it contradicts supported geography, dates, radius, parameter, or intent. Accepted output is tagged `parser_used: "llm"`.
 - **Interfaces:** Called by the FastAPI Backend; calls out to the external LLM API (GPT-4o-mini / Claude 3.5 / Ollama).
 - **Depends on:** External LLM API availability and latency; falls through to the Rule-Based Parser on failure or timeout.
 
 ### 4.4 Rule-Based Parser (Fallback)
-- **Responsibility:** Deterministically parses queries using a small city gazetteer (Mumbai, Chennai, Kolkata, Kochi, Visakhapatnam, Goa), lat/lon regex, year-range regex, and keyword matching for query type and parameter. Always tags output `parser_used: "rule_based"`.
-- **Interfaces:** Invoked by the FastAPI Backend only when the LLM Query Parser fails or times out.
+- **Responsibility:** Deterministically parses queries using the canonical place/region gazetteer shared with the LLM prompt, lat/lon and radius regexes, date/season handling, and boundary-aware intent/parameter matching. It preserves explicit coordinate precision and rejects unsupported or out-of-policy values. Always tags output `parser_used: "rule_based"`.
+- **Interfaces:** Invoked directly when no provider is configured and as the mandatory fallback when the LLM times out, fails, or returns invalid output.
 - **Depends on:** Nothing external — pure Python, no network calls, by design (it exists to be the reliable fallback).
 
 ### 4.5 Data Layer
@@ -78,7 +78,7 @@ graph TD
 
 ### 4.7 Anomaly Model (Ocean-Event Path)
 - **Responsibility:** Computes a Z-score (`z = (x − μ) / σ`) for the QC-passed queried value against a precomputed production baseline (mean/std by region and month, full available history) and classifies it as `normal`, `mild_positive`, `mild_negative`, `strong_positive`, or `strong_negative`. Also passes through the baseline's `n` (sample size) and the QC Filter's `valid_profile_count` / `distinct_float_count` so the Evidence Grade can be computed. Does not itself use the terms "marine heatwave" — that requires daily SST above a seasonally varying percentile threshold for a sustained duration (a different method than sparse-profile Z-scoring), so results are labeled "upper-ocean temperature anomaly" or "salinity anomaly" instead.
-- **Interfaces:** Called by the FastAPI Backend when `include_anomaly` is true or the query implies anomaly interest; reads QC-passed data and precomputed baselines.
+- **Interfaces:** Called by the FastAPI Backend for every successful parameter result; it emits a score only when the evidence grade, baseline sample, and non-zero baseline standard deviation permit one. `include_anomaly` changes narrative emphasis rather than bypassing those gates.
 - **Depends on:** QC Filter output; Precomputed Production Baselines (distinct from the separate Validation Baseline used only in `validate_heatwave.py`).
 
 ### 4.8 Evidence Grade
@@ -226,7 +226,7 @@ erDiagram
 |---|---|---|
 | Direct LLM API calls, no LangChain | LangChain / other orchestration frameworks | Less abstraction, fewer failure modes, easier to debug under time pressure |
 | CSV/Parquet files, no MongoDB | MongoDB or another database | Zero-config, faster to build, nothing extra to break on demo day |
-| Z-score vs. climatology, no Isolation Forest | Isolation Forest / other ML anomaly detectors | Proven sufficient for ocean anomaly detection, explainable to judges, feasible in 2 days |
+| Z-score vs. climatology, no Isolation Forest | Isolation Forest / other ML anomaly detectors | Transparent, feasible for the hackathon scope, and suitable for evaluation; scientific sufficiency remains gated on the frozen validation work |
 | Stateless queries, no multi-turn memory | Session-based conversational memory | Removes state-management bugs while still satisfying the "chat interface" requirement |
 | Precomputed baselines (offline) | Live baseline computation per request | Removes live-latency risk; one-time cost during data prep instead |
 | Separate validation (2015–2018) vs. production (full history) baselines | Single shared baseline for both validation and live queries | Prevents conflating a short test window with the real serving baseline — data integrity concern surfaced in the redteam pass |

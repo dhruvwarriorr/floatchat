@@ -9,6 +9,7 @@ import type {
   ResponseKind,
   StatusDetails,
 } from "../types/ocean";
+import { formatCoordinates } from "../utils/geo";
 
 // Region rectangles are taken from the backend `location.bounds` (the scientific
 // selection source of truth) so the map cannot drift from retrieval. Only the
@@ -51,10 +52,9 @@ function confidenceForGrade(grade: EvidenceGrade): Confidence {
 }
 
 function coordinates(response: ChatApiResponse): string {
-  const { latitude, longitude, region_id } = response.params.location;
+  const { latitude, longitude, region_id, coordinate_precision } = response.params.location;
   if (region_id) return "Named regional selection";
-  if (latitude === null || longitude === null) return "Location unavailable";
-  return `${Math.abs(latitude).toFixed(2)}°${latitude >= 0 ? "N" : "S"}, ${Math.abs(longitude).toFixed(2)}°${longitude >= 0 ? "E" : "W"}`;
+  return formatCoordinates(latitude, longitude, coordinate_precision ?? 2);
 }
 
 function trace(value: import("./chatApi").ApiTrace | undefined): DataPoint["trace"] {
@@ -166,8 +166,8 @@ function chartSummary(response: ChatApiResponse): string {
 export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
   const location = response.params.location;
   const marker = {
-    latitude: location.latitude ?? 0,
-    longitude: location.longitude ?? 70,
+    latitude: location.latitude,
+    longitude: location.longitude,
   };
   const reasons = response.evidence_grade_reasons.map((reason) => reason.replaceAll("_", " "));
   return {
@@ -204,6 +204,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       coordinates: coordinates(response),
       marker,
       radiusKm: location.radius_km,
+      coordinatePrecision: location.coordinate_precision ?? 2,
       region: regionContext(location.region_id, location.bounds ?? null),
     },
     status: status(response),
@@ -211,7 +212,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       calculated: response.evidence_panel.current_period_summary,
       grouped: response.evidence_panel.aggregation_method || response.data.aggregation_method,
       baseline: response.evidence_panel.baseline_summary || "No production-baseline score was emitted for this answer.",
-      score: response.evidence_panel.score_summary || "No Z-score was requested for this answer.",
+      score: response.evidence_panel.score_summary || "No Z-score was emitted because the evidence or production baseline was insufficient.",
       caveat: response.evidence_panel.proxy_caveat || response.data.proxy_note,
     },
     evidenceGrade: response.evidence_grade,

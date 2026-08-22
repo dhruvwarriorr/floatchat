@@ -1,9 +1,10 @@
+from collections.abc import Callable
 from datetime import date
 
 import httpx
 import pytest
 
-from app.models import Parameter, ParserUsed, QueryType
+from app.models import GeographicBounds, Parameter, ParserUsed, QueryLocation, QueryType
 from app.services.parser import (
     GAZETTEER,
     REGION_NAMES,
@@ -110,13 +111,7 @@ def test_date_extraction(query: str, date_from: str, date_to: str) -> None:
 
 
 def test_parse_query_uses_deterministic_parser_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in (
-        "GEMINI_API_KEY",
-        "FLOATCHAT_LLM_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("FLOATCHAT_LLM_API_KEY", raising=False)
 
     assert parse_query("Temperature near Mumbai 2024").parser_used is ParserUsed.RULE_BASED
 
@@ -141,12 +136,44 @@ def test_rule_parser_understands_both_parameters() -> None:
     assert parsed.query_type is QueryType.TIME_SERIES
 
 
+def test_casual_water_question_uses_both_properties() -> None:
+    parsed = parse_rule_based("How’s the water near Goa?")
+
+    assert parsed.parameters == [Parameter.TEMPERATURE, Parameter.SALINITY]
+    assert parsed.query_type is QueryType.PROFILE
+
+
+def test_unicode_punctuation_is_normalized() -> None:
+    parsed = parse_rule_based("Temperature near Goa from 2020—2024")
+
+    assert parsed.query_type is QueryType.TIME_SERIES
+    assert parsed.date_from == "2020-01-01"
+    assert parsed.date_to == "2024-12-31"
+
+
 def test_rule_parser_preserves_sst_proxy_in_multi_parameter_query() -> None:
     parsed = parse_rule_based(
         "Plot SST and salinity near Kochi from 2021 to 2024 over time"
     )
 
     assert parsed.parameters == [Parameter.SHALLOW_SST_PROXY, Parameter.SALINITY]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "temperature near Goa within 50 km in 2024",
+        "temperature near Goa 50 kilometres around in 2024",
+        "temperature near Goa radius of 50 kilometers in 2024",
+    ],
+)
+def test_radius_variants_preserve_the_explicit_value(query: str) -> None:
+    assert parse_rule_based(query).location.radius_km == 50
+
+
+def test_out_of_policy_radius_is_rejected_instead_of_clamped() -> None:
+    with pytest.raises(UnsupportedQuery):
+        parse_rule_based("temperature near Goa within 2500 km in 2024")
 
 
 class _FakeResponse:
@@ -163,8 +190,9 @@ class _FakeResponse:
 def test_gemini_structured_output_is_validated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
-    monkeypatch.setenv("FLOATCHAT_LLM_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_MODEL", "gemini-2.5-flash")
     captured: dict[str, object] = {}
 
     def fake_post(url: str, **kwargs: object) -> _FakeResponse:
@@ -184,7 +212,9 @@ def test_gemini_structured_output_is_validated(
         )
 
     monkeypatch.setattr("app.services.parser.httpx.post", fake_post)
-    parsed = parse_llm("Compare temperature and salinity near Kochi")
+    parsed = parse_llm(
+        "Compare temperature and salinity near Kochi from 2021 to 2024"
+    )
 
     assert parsed.parser_used is ParserUsed.LLM
     assert parsed.parameter is Parameter.ALL
@@ -205,7 +235,8 @@ def test_gemini_structured_output_is_validated(
 def test_any_provider_failure_falls_back(
     monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
 
     def fail_post(*_args: object, **_kwargs: object) -> object:
         raise failure
@@ -217,7 +248,8 @@ def test_any_provider_failure_falls_back(
 
 
 def test_malformed_gemini_output_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setattr(
         "app.services.parser.httpx.post",
         lambda *_args, **_kwargs: _FakeResponse({"output_text": "not-json"}),
@@ -339,6 +371,23 @@ def test_point_query_has_no_region_bounds() -> None:
     assert parsed.location.bounds is None
 
 
+def test_location_contract_rejects_an_incomplete_display_centre() -> None:
+    with pytest.raises(ValueError):
+        QueryLocation(
+            label="Incomplete region",
+            latitude=10,
+            longitude=None,
+            region_id="arabian-sea",
+            bounds=GeographicBounds(south=8, west=55, north=25, east=75),
+        )
+
+
+def test_explicit_coordinate_precision_is_retained_for_the_map_contract() -> None:
+    parsed = parse_rule_based("temperature at 10.1234N 70.5E in 2024")
+
+    assert parsed.location.coordinate_precision == 4
+
+
 def test_coordinates_outside_indian_ocean_envelope_are_rejected() -> None:
     with pytest.raises(UnsupportedQuery):
         parse_rule_based("temperature at 45N, 10W in 2023")
@@ -378,11 +427,68 @@ def test_prompt_injection_text_is_treated_as_data() -> None:
 
 
 def _gemini(monkeypatch: pytest.MonkeyPatch, payload: dict[str, object]) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setattr(
         "app.services.parser.httpx.post",
         lambda *_a, **_k: _FakeResponse({"output_text": __import__("json").dumps(payload)}),
     )
+
+
+def test_provider_known_place_coordinates_are_canonicalized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _gemini(
+        monkeypatch,
+        {
+            "query_type": "profile",
+            "parameters": ["temperature"],
+            "lat": 16.0,
+            "lon": 74.0,
+            "region_id": None,
+            "location_label": "Goa-ish",
+            "date_from": "2023-01-01",
+            "date_to": "2023-12-31",
+            "radius_km": 100,
+            "include_anomaly": False,
+        },
+    )
+
+    parsed = parse_llm("temperature near Goa in 2023")
+
+    assert parsed.location.label == "Goa coast"
+    assert parsed.location.latitude == 15.49
+    assert parsed.location.longitude == 73.83
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: {**payload, "extra": "not allowed"},
+        lambda payload: {**payload, "include_anomaly": "false"},
+        lambda payload: {**payload, "radius_km": "100"},
+    ],
+)
+def test_provider_schema_is_exact(
+    monkeypatch: pytest.MonkeyPatch,
+    mutator: Callable[[dict[str, object]], dict[str, object]],
+) -> None:
+    payload = {
+        "query_type": "profile",
+        "parameters": ["temperature"],
+        "lat": 15.49,
+        "lon": 73.83,
+        "region_id": None,
+        "location_label": "Goa coast",
+        "date_from": "2023-01-01",
+        "date_to": "2023-12-31",
+        "radius_km": 100,
+        "include_anomaly": False,
+    }
+    _gemini(monkeypatch, mutator(payload))
+
+    with pytest.raises(SchemaViolation):
+        parse_llm("temperature near Goa in 2023")
 
 
 @pytest.mark.parametrize(
@@ -438,11 +544,12 @@ def test_provider_semantic_violations_are_classified(
 ) -> None:
     _gemini(monkeypatch, payload)
     with pytest.raises(category):
-        parse_llm("some in-scope query")
+        parse_llm("temperature at 15N 70E in 2023")
 
 
 def test_provider_timeout_is_classified(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
 
     def timeout(*_a: object, **_k: object) -> object:
         raise httpx.TimeoutException("slow")
@@ -453,7 +560,8 @@ def test_provider_timeout_is_classified(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_provider_http_error_is_classified(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
 
     def http_error(*_a: object, **_k: object) -> object:
         raise httpx.ConnectError("no route")
@@ -464,7 +572,8 @@ def test_provider_http_error_is_classified(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_malformed_json_is_classified(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setattr(
         "app.services.parser.httpx.post",
         lambda *_a, **_k: _FakeResponse({"output_text": "definitely not json"}),

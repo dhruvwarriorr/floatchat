@@ -50,13 +50,7 @@ def run_mode(
     repetitions: int,
 ) -> dict[str, Any]:
     original_environment = {
-        key: os.environ.get(key)
-        for key in (
-            "GEMINI_API_KEY",
-            "FLOATCHAT_LLM_API_KEY",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
-        )
+        "FLOATCHAT_LLM_API_KEY": os.environ.get("FLOATCHAT_LLM_API_KEY")
     }
     if mode == "disabled":
         for key in original_environment:
@@ -173,12 +167,7 @@ def run_api_scenarios(repetitions: int) -> dict[str, Any]:
             "reason": "query-ready local data artifact is absent",
         }
 
-    provider_keys = (
-        "GEMINI_API_KEY",
-        "FLOATCHAT_LLM_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-    )
+    provider_keys = ("FLOATCHAT_LLM_API_KEY",)
     provider_environment = {key: os.environ.get(key) for key in provider_keys}
     for key in provider_keys:
         os.environ.pop(key, None)
@@ -307,16 +296,32 @@ def main() -> int:
     fixtures = json.loads(args.fixtures.read_text(encoding="utf-8"))
     if not 20 <= len(fixtures) <= 30:
         raise ValueError("The frozen reliability suite must contain 20–30 prompts")
-    live_requests = len(fixtures) * args.repetitions if "enabled" in args.modes else 0
-    if live_requests > args.max_live_requests:
+    provider_configured = bool(os.environ.get("FLOATCHAT_LLM_API_KEY"))
+    projected_live_requests = (
+        len(fixtures) * args.repetitions
+        if "enabled" in args.modes and provider_configured
+        else 0
+    )
+    if projected_live_requests > args.max_live_requests:
         raise ValueError(
-            f"Enabled mode would make {live_requests} calls; cap is {args.max_live_requests}."
+            f"Enabled mode would make {projected_live_requests} calls; "
+            f"cap is {args.max_live_requests}."
         )
+    mode_results = [run_mode(fixtures, mode, args.repetitions) for mode in args.modes]
+    enabled_result = next(
+        (result for result in mode_results if result.get("mode") == "enabled"),
+        None,
+    )
+    live_requests = (
+        int(enabled_result.get("run_count", 0))
+        if enabled_result and enabled_result.get("status") == "completed"
+        else 0
+    )
     results = {
         "status": "generated_not_reviewed",
         "fixture_path": str(args.fixtures.relative_to(ROOT)),
         "python": sys.version,
-        "results": [run_mode(fixtures, mode, args.repetitions) for mode in args.modes],
+        "results": mode_results,
         "live_provider_request_count": live_requests,
         "live_provider_request_cap": args.max_live_requests,
         "api_scenarios": (

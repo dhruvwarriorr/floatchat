@@ -1,124 +1,103 @@
-# FloatChat-Lite v6 — Implementation Review
+# FloatChat-Lite v6 — implementation and verification review
 
-**Branch:** `v6-llm-map-improvements` (4 commits ahead of `main`)
-**Status:** Backend `ruff` clean · **183** pytest passing · parser reliability **30/30** · Frontend TypeScript build clean · `eslint` clean · **9** contract tests passing
+> Reviewed against `codex_prompt_v6_llm_map_improvements.md` on 22 August 2026.
+> This report describes the current working tree. It does not imply a commit,
+> deployment, successful provider-enabled acceptance, scientific validation, or projector acceptance.
 
-A plain-language walkthrough of the v6 upgrade — a smarter query parser, richer charts, a precise map, an always-on anomaly score, and a reorganized results panel — plus how it was tested and what remains open.
+## Outcome
 
----
+The implementable v6 code paths are present and the follow-up hardening pass fixed
+the main blank-screen risks, tightened parser authority, made the scientific
+visualisations easier to read, and reduced parser configuration to one optional
+server-side key. `make check` passes with 199 backend tests and 12 frontend tests.
 
-## The short version
+The remaining gates are external or evidence-based: no browser runtime was
+available for the required desktop/mobile/projector visual pass, the configured
+provider did not produce a successful accepted LLM parse during the live smoke
+check, and the installed exports do not cover all three original pinned selections.
+Those limits are not relabelled as successful acceptance.
 
-FloatChat-Lite lets you ask plain-English questions about Indian Ocean temperature and salinity (from ARGO floats) and get an explained, evidence-graded answer. The v6 prompt asked for a set of **incremental improvements — not a rebuild.** The work touched both the Python backend (how questions are understood and data is crunched) and the React frontend (how results are shown).
+## Prompt cross-check
 
-Everything landed on `v6-llm-map-improvements` across four commits. The pre-existing local edits to `data/` were left untouched.
+| Prompt area | Current implementation | Verification |
+| --- | --- | --- |
+| Part 0 baseline | Parquet retrieval, haversine/bounds selection, mandatory QC, three aggregations, production-baseline Z-score, evidence grading/panel, typed errors, CORS, Leaflet, chart parameter controls, adapter, suggestions, and provenance are present. The manifest reports 14,413,526 processed observations, 77,172 profiles, 531 floats, and Arabian-Sea-focused coverage—not complete Indian Ocean coverage. | Source/tests/manifest inspected; readiness returned `200`. |
+| Part 1 typography | Projector-facing body, input, chart axes/tooltips, metadata, chart summaries, errors, map labels, evidence text, and supplementary chart copy were enlarged. The former global 1180 px minimum width was removed and responsive breakpoints were added. | Frontend lint/build/static checks pass; visual projector check remains open. |
+| Part 2 parser | Unicode NFKC normalisation, deterministic hints, one optional constrained provider call, exact-schema validation, semantic cross-checks, canonical geography, bounded radius/date policy, classified safe fallback, and policy-generated prompt/examples are implemented. Provider output cannot override deterministic known geography or contradictory intent. | Parser unit coverage passes; 30/30 deterministic and 30/30 forced-provider-failure fixture outcomes were generated, not reviewed as pitch evidence. Provider-enabled success was not established. |
+| Part 3 all graphs | Primary aggregation remains first; every supported alternate aggregation is returned as `secondary_views` on a best-effort basis. Each secondary chart states what it shows and how it was grouped. | API response contained both alternate views for the point and regional smoke queries. |
+| Part 4 map | Region bounds come only from the backend. Point radius and region rectangles are mutually exclusive; Leaflet fits actual geometry, invalidates on resize, supports reduced motion/reset/tile failure, and exposes a text equivalent. Explicit coordinate precision is preserved up to four decimals. | Geometry/format helper tests and static component checks pass. Browser resize/visual acceptance remains open. |
+| Part 5 Z-score | Scoring is attempted for every successful parameter result after QC and evidence grading, regardless of wording. Insufficient evidence, missing baseline, or zero baseline standard deviation still suppresses the score honestly. | Backend response/test assertions cover always-on and suppressed states. |
+| Part 6 transparency | “Computation Transparency” opens with a plain-language retrieval/QC/current-period/baseline/score narrative. Dataset IDs, artifact hash/path, source rows, profiles, floats, exclusions, and the trace table are under collapsed “Data Source.” | Frontend contract checks pass. |
+| Part 7 science views | T-S, simplified density, OHC, SVG Hovmöller, seasonal cycle, year-over-year, anomaly trend, and time-series baseline bands are implemented best-effort. T-S and density now use only rows passing both temperature and salinity QC rules. Legends, threshold zones, axis descriptions, units, and caveats were added. | Aggregation unit tests and live API payload inspection pass. |
+| Part 8 layout | The result order is interpreted query/disclosures, insight, primary chart plus map/status, evidence grade, secondary views, supplementary views, transparency, then data source. | Source/static contract verified. |
+| Part 9 scope | No listed v6 feature was intentionally cut. No fake float trajectories or observation heatmaps were added. | Source inspected. |
+| Part 10 definition of done | Code-level items and same-origin end-to-end HTTP flow pass. Visual/projector acceptance, provider success, and full pinned-selection data coverage remain explicitly open. | See checks and limits below. |
 
-| Commit | Summary |
-|---|---|
-| `987a843` | **Backend v6** — new parser policy module, refactored parser, secondary/supplementary data, always-on z-score, expanded tests |
-| `273f16b` | **Frontend v6** — bigger type, new chart components, geometry-driven map, reorganized transparency panel |
-| `0451b96` | **Dev launch config** — so the app can be relaunched easily |
-| `8e5b4d7` | **Performance fix** — cut the heaviest query from ~39s to ~14s |
+## Reliability and blank-screen hardening
 
-**At a glance:** 8 feature areas delivered (Parts 1–8) · 7 new scientific chart types · 3 new files · heaviest query latency 39s → 14s.
+- The frontend now uses the current origin by default. Vite proxies `/chat` and
+  `/health` to FastAPI during development, avoiding a hard-coded localhost URL,
+  mixed-content failure, and deployment-origin drift.
+- Result rendering has an error boundary, so a chart/map/lazy-render exception
+  produces a friendly error state rather than an empty blue page.
+- The map handles environments without `ResizeObserver` and refits when the card
+  size changes. The UI no longer forces a desktop-only 1180 px document width.
+- A live request sent through `http://127.0.0.1:3000/chat` returned `200`, proving
+  the frontend development origin reached FastAPI through the new proxy.
+- A 2501 km query returned the safe typed `422 parse_error`; an uncovered Goa
+  query returned the safe typed `404 no_data`, without a traceback.
 
----
+## One-key parser configuration
 
-## What changed, feature by feature
+`.env.example` exposes only `FLOATCHAT_LLM_API_KEY`. `LLM_PROVIDER` and
+`LLM_MODEL` select the compatible provider/model; provider-specific key aliases
+are no longer read by the parser or supporting reliability/cache scripts. The key
+remains server-only and must never use a `VITE_` prefix.
 
-### 1. Bigger, projector-friendly text
-Raised font sizes across the interface — body copy, chart axes and tooltips, metric values, labels, the map, and error messages — so the app is legible on a projector from across a room.
-> **Why:** the original sizes (10–13px) were fine on a laptop but unreadable in a demo room.
+## Checks performed
 
-### 2. A sturdier query parser
-Rebuilt how questions are understood. All the rules — supported regions, place names, date handling, seasons, radius, intent words — now live in one shared `parser_policy` module used by **both** the AI planner and the deterministic fallback. Word-boundary matching stops false hits (e.g. "salt" inside "basalt"). Failures from the optional AI model are now sorted into clear categories (timeout, auth error, bad JSON, schema/semantic violation) and always fall back safely to the rule-based parser.
-> **Why:** casual questions like *"how's the water near Goa?"* should parse reliably, while the AI is kept as a constrained planner — never an authority on geography, dates, or whether data exists.
+```text
+make check
+  frontend eslint: passed
+  frontend TypeScript/Vite production build: passed
+  frontend tests: 12 passed
+  backend ruff: passed
+  backend tests: 199 passed
 
-### 3. Every chart, not just one
-A single question now returns **all** the ways to view the same QC-passed data. The backend computes the other aggregation types (depth profile, time series, regional average) alongside the one you asked for, and the UI shows them as "Additional visualizations."
-> **Why:** the queried view is shown first and largest; the rest follow as supporting context, nothing hidden.
+FLOATCHAT_LLM_API_KEY= python scripts/test_parser_reliability.py ...
+  deterministic disabled mode: 30/30 expected outcomes
+  simulated provider failure: 30/30 expected outcomes
+  API scenarios: 5/5 expected outcomes
+  provider-enabled mode: skipped because no key was supplied to this run
+  status: generated_not_reviewed
 
-### 4. A precise, honest map
-The map now draws exactly what the backend selected. Region rectangles come from the backend's canonical bounds (a duplicated, drift-prone table in the frontend was removed). The viewport fits the actual geometry — a radius circle for point queries, the region box for regions — with a "Reset view" control, a screen-reader text description, and reduced-motion support.
-> **Why:** a higher zoom number isn't precision. Correct coordinates, real radius-to-kilometres, and canonical bounds are.
+Live same-origin smoke checks through Vite
+  GET /: 200
+  GET /health/ready: 200 ready
+  point profile: 200 Supported, anomaly + secondary/supplementary payloads
+  Arabian Sea regional average: 200 Supported with canonical bounds
+  out-of-range radius: 422 parse_error
+  uncovered Goa selection: 404 no_data
 
-### 5. The anomaly score is always shown
-The Z-score (how far a reading sits from the historical baseline, in standard deviations) is now computed whenever the evidence allows — not only when the question explicitly asked "is this unusual?". When there isn't enough data, the card stays visible but shows an honest "assessment unavailable" note.
-> **Why:** the context is useful on every answer; the flag now only affects wording emphasis, not whether the number exists.
+Container check
+  make container: blocked before build because the local Docker daemon/socket was unavailable
+```
 
-### 6. A clearer results panel
-The "Computation Transparency" section now opens with a **plain-English narrative** (*"Searched the Arabian Sea… found 1,965 raw profiles; 1,228 passed quality control…"*) instead of a wall of raw numbers. The technical identifiers — float IDs, profile IDs, source rows, dataset hash — moved into a collapsed "Data Source" section.
-> **Why:** lead with the story a person can read; keep the audit trail one click away.
+## Honest remaining limits
 
-### 7. Seven new scientific charts
-Added a **T–S diagram**, **density profile**, **ocean-heat-content** card, a **Hovmöller** depth–time heatmap, **seasonal cycle** (with a ±1σ band), **year-over-year** overlay, and an **anomaly-trend** line — plus a confidence-interval band on the main time-series chart. Each is best-effort: it appears only when the data supports it.
-> **Why:** these are the visualizations oceanographers actually reach for; the Hovmöller heatmap especially reads at a glance.
-
-### 8. A deliberate reading order
-Each answer now flows most-important to most-technical: interpreted question → plain insight → primary chart + map + anomaly card → evidence grade → secondary charts → supplementary science → transparency narrative → collapsed data source.
-> **Why:** the thing you asked for is first and biggest; everything else is layered support.
-
----
-
-## Where the changes live
-
-| File | Type | What changed |
-|---|---|---|
-| `backend/app/services/parser_policy.py` | new | Single source of truth for parsing rules + generated AI prompt |
-| `backend/app/services/parser.py` | rewrite | Word-boundary helpers, classified failures, semantic validation, relative/seasonal dates |
-| `backend/app/services/aggregation.py` | edit | Seven supplementary views + the with-trace performance flag |
-| `backend/app/api/chat.py` | edit | Always-on Z-score, secondary views, supplementary data |
-| `backend/app/models.py` | edit | Geographic bounds + new response fields |
-| `backend/tests/test_parser.py` | edit | 30+ paraphrases, 10 unsupported, provider-failure classification |
-| `evaluation/fixtures/parser_queries.json` | edit | Frozen reliability fixture grown to 30 prompts |
-| `frontend/src/components/SecondaryCharts.tsx` | new | Renders the other aggregation types |
-| `frontend/src/components/SupplementaryCharts.tsx` | new | The seven scientific charts |
-| `frontend/src/utils/geo.ts` | new | Pure coordinate/radius formatting helpers |
-| `frontend/src/components/OceanMap.tsx` | rewrite | Geometry-fit viewport, reset control, accessibility |
-| `frontend/src/components/ExplanationPanel.tsx` | rewrite | Narrative transparency + collapsed Data Source |
-| `frontend/src/components/StatusCard.tsx` | edit | Always renders; muted when no score |
-| `frontend/src/components/Charts.tsx` | edit | Larger axes, confidence-interval band |
-| `frontend/src/globals.css` | edit | Font-size increases + new component styles |
-| `frontend/src/api/adapter.ts` | edit | Backend-bounds passthrough, CI-band math, removed drift table |
-| `frontend/src/api/chatApi.ts`, `types/ocean.ts` | edit | New contract fields (bounds, secondary/supplementary) |
-| `frontend/src/components/ResultView.tsx` | edit | Wires the new chart sections into the layout order |
-| `frontend/tests/rendered-html.test.mjs` | edit | Updated for the reorganized panel + new charts |
-
----
-
-## How it was verified
-
-- **Backend:** `ruff` clean, **183** pytest tests passing, parser reliability suite **30/30**.
-- **Frontend:** TypeScript build clean, `eslint` clean, **9** contract tests passing.
-- **End-to-end:** ran the live API + dev server and drove a real query through the running app, confirming every new section rendered — secondary charts, all supplementary views, the narrative transparency panel, the collapsed Data Source, the always-on Z-score, and the map with backend-derived bounds.
-
-### Performance, before → after the fix
-
-| Query | Before | After |
-|---|---|---|
-| Point profile (10N 70E, 150 km) | ~3 s | **1.5 s** |
-| SST time-series (10 years) | ~23 s | **10.5 s** |
-| Arabian Sea regional average | ~39 s | **14 s** |
-
-The new "additional views" were paying the full cost of building a per-row audit trail they never display. Turning that trail off for the secondary charts (the primary answer keeps its full trace) removed most of the slowdown.
-
----
-
-## Deliberate deviations & limits (the honest bits)
-
-- **Parser test fixture kept at 30, not 38+.** The prompt asked to grow the frozen fixture to 30+ supported and 8+ unsupported prompts. The repo's own reliability script hard-caps that fixture at 20–30 (an evidence-integrity guard). Rather than break it, the fixture sits at the maximum **30**, and the full ≥30-supported / ≥10-unsupported coverage lives in the **unit tests** instead.
-- **Live check was DOM-based, not a screenshot.** The browser pane wasn't compositing frames on this machine, so end-to-end verification read the live page's accessibility tree and text rather than capturing a picture. Content and structure were confirmed present; a pixel-level visual pass and the projector/mobile size checks are still worth a human eye.
-- **Some supplementary charts are conditional.** By design, the T–S diagram and density profile need both temperature and salinity columns (so they appear on multi-parameter queries), and year-over-year needs two or more years. A single-year, single-parameter question won't show all seven — this is expected best-effort behavior, not a bug.
-- **The data is still Arabian-Sea-only.** Unchanged from before v6: the installed dataset covers the Arabian Sea, so Mumbai / Chennai / Bay-of-Bengal queries still correctly return an honest "no data." That's a dataset limitation, not something this work altered.
-
----
-
-## Still open (not done — and why)
-
-- **Regional queries take ~14 s.** The remaining cost is the quality-control filter plus the primary aggregation over ~900k observations — the real answer. Cutting it further means downsampling the supplementary charts or moving them off the request path; left as a follow-up rather than touching the audited QC boundary.
-- **Scientific anomaly labels remain empty.** The v6 prompt didn't ask for them, so the reviewed anomaly ground-truth (and therefore precision/recall numbers) is still unpopulated, exactly as before.
-- **The Gemini AI key is still unset.** The parser architecture is ready for it, but with no key the deterministic fallback handles everything — which is the safe, intended default.
-
----
-
-*Latency figures are warm-cache measurements on the local dataset. Backend and frontend checks green; pre-existing `data/` edits left untouched.*
+- The in-app browser reported that no browser runtime was available. Automated
+  checks and HTTP smoke tests are complete, but desktop, narrow-mobile,
+  projector/full-screen, tile-failure, and pixel-level visual acceptance still
+  require a browser/human pass.
+- The Dockerfile was not container-accepted in this run because no Docker daemon
+  was available at the local socket; this is separate from the passing app build.
+- Provider calls seen during the live API smoke check fell back safely. This is
+  not evidence of successful Gemini/OpenAI/Anthropic structured parsing.
+- The installed data is an Arabian-Sea-focused export. Its manifest records zero
+  coverage for the original Mumbai-50-km and Bay-of-Bengal pinned selections.
+  Those queries correctly return `no_data`; adding reviewed exports is a data
+  acquisition task and must not be simulated in UI fixtures.
+- The density equation and OHC view are transparent simplified visual aids with
+  displayed caveats. They are not independent scientific validation.
+- Generated reliability metrics remain outside `docs/evidence/evidence-log.csv`
+  until reviewed and recorded unchanged.

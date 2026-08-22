@@ -11,6 +11,11 @@ from app.config import EvidenceGradeThresholds, Settings
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def disable_optional_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("FLOATCHAT_LLM_API_KEY", raising=False)
+
+
 async def post_chat(query: str) -> Response:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -150,6 +155,12 @@ def test_success_response_contains_complete_trust_contract(
     assert body["data"]["bins"]
     assert body["data"]["bins"][0]["trace"]["profile_ids"]
     assert body["evidence_panel"]["source_record_sample"]
+    assert body["anomaly"] is not None
+    assert set(body["secondary_views"]) == {"time_series", "regional_average"}
+    assert {"ts_diagram", "density_profile", "seasonal_cycle", "hovmoller"} <= set(
+        body["supplementary_data"]
+    )
+    assert body["params"]["location"]["coordinate_precision"] == 2
     assert "traceback" not in response.text.lower()
 
 
@@ -184,6 +195,23 @@ def test_multi_parameter_query_runs_independent_pipelines(
     assert set(body["results_by_parameter"]) == {"temperature", "salinity"}
     assert body["results_by_parameter"]["temperature"]["data"]["bins"]
     assert body["results_by_parameter"]["salinity"]["data"]["bins"]
+
+
+def test_paired_scientific_views_require_both_parameter_qc_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_query_ready_fixture(tmp_path)
+    artifact = tmp_path / "processed" / "argo_profiles.parquet"
+    rows = pd.read_parquet(artifact)
+    rows.loc[rows.index[0], "psal_adjusted_qc"] = "4"
+    rows.to_parquet(artifact, index=False)
+    monkeypatch.setattr(chat_module, "get_settings", lambda: settings(tmp_path))
+
+    response = asyncio.run(post_chat("Show temperature profile near Mumbai in July 2024"))
+
+    assert response.status_code == 200
+    points = response.json()["supplementary_data"]["ts_diagram"]["points"]
+    assert len(points) == len(rows) - 1
 
 
 def test_no_matching_location_returns_no_data(

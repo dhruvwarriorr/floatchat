@@ -68,15 +68,42 @@ function fitSelection(map: L.Map, selection: MapSelection) {
 function MapViewport({ selection, resetToken }: { selection: MapSelection; resetToken: number }) {
   const map = useMap();
   const key = viewportKey(selection);
+  const animationFrame = useRef<number | null>(null);
   useEffect(() => {
-    fitSelection(map, selection);
     const container = map.getContainer();
-    const observer = new ResizeObserver(() => {
-      map.invalidateSize({ animate: false });
-      fitSelection(map, selection);
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
+    let lastSize = `${Math.round(container.clientWidth)}x${Math.round(container.clientHeight)}`;
+    const scheduleFit = () => {
+      if (animationFrame.current !== null) window.cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = window.requestAnimationFrame(() => {
+        animationFrame.current = null;
+        fitSelection(map, selection);
+      });
+    };
+    scheduleFit();
+
+    const onResize = (width: number, height: number) => {
+      const nextSize = `${Math.round(width)}x${Math.round(height)}`;
+      if (nextSize === lastSize) return;
+      lastSize = nextSize;
+      scheduleFit();
+    };
+
+    let observer: ResizeObserver | null = null;
+    const windowResize = () => onResize(container.clientWidth, container.clientHeight);
+    if (typeof ResizeObserver === "function") {
+      observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry) onResize(entry.contentRect.width, entry.contentRect.height);
+      });
+      observer.observe(container);
+    } else {
+      window.addEventListener("resize", windowResize);
+    }
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", windowResize);
+      if (animationFrame.current !== null) window.cancelAnimationFrame(animationFrame.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key, resetToken]);
   return null;
@@ -92,13 +119,14 @@ export function OceanMap({ context }: { context: MapContext }) {
     : undefined;
 
   const isRegion = selection.kind === "region";
+  const coordinatePrecision = context.coordinatePrecision ?? 2;
   const selectionLabel = isRegion
     ? `Regional selection: ${context.label}`
     : `Point selection: ${context.label}`;
   const radiusLabel = isRegion ? "Regional selection" : `Search radius: ${formatRadius(selection.kind === "point" ? selection.radiusKm : 0)}`;
   const textEquivalent = isRegion
     ? `${context.label} regional selection, bounds ${context.region!.south.toFixed(1)}°–${context.region!.north.toFixed(1)}° latitude, ${context.region!.west.toFixed(1)}°–${context.region!.east.toFixed(1)}° longitude.`
-    : `${context.label} at ${formatCoordinates(context.marker.latitude, context.marker.longitude)}, ${radiusLabel.toLowerCase()}.`;
+    : `${context.label} at ${formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)}, ${radiusLabel.toLowerCase()}.`;
 
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -120,7 +148,7 @@ export function OceanMap({ context }: { context: MapContext }) {
       </div>
       <div
         className="map-visual"
-        role="group"
+        role="region"
         aria-label={`Selection map. ${selectionLabel}. ${radiusLabel}.`}
       >
         <MapContainer center={center} zoom={5} minZoom={2} maxZoom={10} scrollWheelZoom={false}>
@@ -153,7 +181,7 @@ export function OceanMap({ context }: { context: MapContext }) {
           >
             <Tooltip direction="top" offset={[0, -9]} permanent>
               <strong>{context.label}</strong><br />
-              {isRegion ? "Region centre" : formatCoordinates(context.marker.latitude, context.marker.longitude)}
+              {isRegion ? "Region centre" : formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)}
               <br />{radiusLabel}
             </Tooltip>
           </CircleMarker>
@@ -164,7 +192,7 @@ export function OceanMap({ context }: { context: MapContext }) {
         <span className="mini-pin"><MapPin size={14} aria-hidden="true" /></span>
         <div>
           <strong>{context.label}</strong>
-          <span>{isRegion ? "Regional selection" : formatCoordinates(context.marker.latitude, context.marker.longitude)}</span>
+          <span>{isRegion ? "Regional selection" : `${formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)} • ${radiusLabel}`}</span>
         </div>
         <p>CartoDB / OpenStreetMap • selection geometry • not for navigation</p>
       </div>

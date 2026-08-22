@@ -82,12 +82,19 @@ class QueryLocation(BaseModel):
     region_id: str | None = None
     radius_km: float = Field(default=100.0, ge=1.0, le=2000.0)
     bounds: GeographicBounds | None = None
+    coordinate_precision: int = Field(default=2, ge=0, le=4)
 
     @model_validator(mode="after")
     def require_coordinates_or_region(self) -> QueryLocation:
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("location coordinates must be supplied as a complete pair")
         has_coordinates = self.latitude is not None and self.longitude is not None
-        if not has_coordinates and not self.region_id:
-            raise ValueError("location requires coordinates or a named region")
+        if not has_coordinates:
+            raise ValueError("location requires a display centre coordinate pair")
+        if self.region_id and self.bounds is None:
+            raise ValueError("named-region locations require canonical bounds")
+        if not self.region_id and self.bounds is not None:
+            raise ValueError("point locations cannot carry regional bounds")
         return self
 
 

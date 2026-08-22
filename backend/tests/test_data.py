@@ -116,7 +116,8 @@ def test_repository_filters_space_time_and_parameter(tmp_path: Path) -> None:
 
     assert records["profile_id"].tolist() == ["1:1"]
     assert "temp_adjusted" in records
-    assert "psal_adjusted" not in records
+    assert "psal_adjusted" in records
+    assert "psal" not in records
     assert records["distance_km"].iloc[0] == pytest.approx(0)
 
 

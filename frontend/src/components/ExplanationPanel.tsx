@@ -4,7 +4,7 @@ import type { OceanResponse } from "../types/ocean";
 const reasonLabel = (reason: string) => reason.replaceAll("_", " ");
 
 const NO_BASELINE = "No production-baseline score was emitted for this answer.";
-const NO_SCORE = "No Z-score was requested for this answer.";
+const NO_SCORE = "No Z-score was emitted because the evidence or production baseline was insufficient.";
 
 export function ExplanationPanel({ response }: { response: OceanResponse }) {
   const items = [

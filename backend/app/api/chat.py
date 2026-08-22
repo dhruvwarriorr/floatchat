@@ -213,11 +213,25 @@ def _build_parameter_result(
             continue
         if alternate_agg.get("current_value") is not None:
             secondary_views[alternate_type.value] = alternate_agg
+    paired_records = None
+    try:
+        paired_parameter = (
+            Parameter.SALINITY
+            if parameter in {Parameter.TEMPERATURE, Parameter.SHALLOW_SST_PROXY}
+            else Parameter.TEMPERATURE
+        )
+        # T-S and density views require rows that passed the declared adjusted
+        # QC rule for both measurements. Re-filtering the already-retained frame
+        # keeps rejected values out of supplementary calculations.
+        paired_records = apply_qc_filter(qc_result.retained, paired_parameter).retained
+    except (KeyError, ValueError):
+        paired_records = None
     supplementary_data = compute_supplementary_views(
         qc_result.retained,
         parameter,
         baseline_df,
         qc_result.value_col,
+        paired_records,
         latitude=params.location.latitude,
         longitude=params.location.longitude,
         region_id=params.location.region_id,

@@ -23,6 +23,8 @@ The browser calls only this API through `frontend/src/api/chatApi.ts`; `frontend
 
 Structurally invalid requests use FastAPI/Pydantic's standard `422` body. Project-envelope normalization remains a contract decision.
 
+The returned `params.location` is also validated. Every selection carries a complete latitude/longitude display centre so the map never invents a fallback coordinate. A point also carries its radius and `coordinate_precision` (0–4, used only for honest display formatting). A named region carries its canonical backend `bounds`; point locations cannot carry region bounds, and named regions cannot omit them. Explicit radii outside 1–2000 km are rejected rather than silently clamped.
+
 ## Target processing order
 
 ```text
@@ -46,7 +48,7 @@ The anomaly service must never receive QC-rejected records.
 | `summary` | Plain-language restatement of the answer. |
 | `query_type` / `params` | Validated query vocabulary and selection. |
 | `data` | Chart-ready result; variants must be frozen from reviewed real fixtures. |
-| `anomaly` | Optional z-score label plus production baseline mean/std/period/`n`; never call sparse-profile output a marine heatwave. |
+| `anomaly` | Optional z-score label plus production baseline mean/std/period/`n`; attempted for every successful parameter result but omitted when evidence/baseline policy disallows scoring. Never call sparse-profile output a marine heatwave. |
 | `evidence_grade` | `Insufficient`, `Indicative`, or `Supported`. Replaces `data_sufficiency.confidence`. |
 | `evidence_grade_reasons` | Machine-readable or stable textual reasons for the grade. |
 | `evidence_panel` | QC rule, raw/valid/excluded counts, distinct floats, QC pass rate, current aggregate, baseline mean/std/`n`, score, source/version, and selection provenance. |
@@ -56,6 +58,8 @@ The anomaly service must never receive QC-rejected records.
 | `parser_used` | `llm` or `rule_based`; fallback must be disclosed. |
 | `source` / dataset version | Reviewed artifact identity. |
 | `results_by_parameter` | Independent temperature/salinity data, grade, anomaly, QC, and evidence payloads when the query asks for both. |
+| `secondary_views` | Best-effort alternate aggregations over the same parameter's QC-passed observations. |
+| `supplementary_data` | Best-effort T-S, density, OHC, Hovmöller, seasonal, year-over-year, and anomaly-trend payloads. Joint temperature-salinity products use only observations that pass both parameter QC policies. |
 
 Every chart bin/month includes a bounded `trace` object with contributing profile IDs, float IDs, and source-file row references. The evidence panel also identifies the Parquet artifact and SHA-256.
 

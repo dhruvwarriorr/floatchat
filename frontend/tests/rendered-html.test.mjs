@@ -22,6 +22,8 @@ test("submits every user question to the backend contract", async () => {
   assert.match(app, /adaptApiResponse\(result\)/);
   assert.doesNotMatch(app, /resolveOceanQuery|oceanResponses/);
   assert.match(api, /VITE_API_URL/);
+  assert.match(api, /import\.meta\.env\.VITE_API_URL \|\| ""/);
+  assert.doesNotMatch(api, /VITE_API_URL \|\| "http:\/\/localhost:8000"/);
   assert.match(api, /fetch\(`\$\{API_BASE\}\/chat`/);
   assert.match(api, /JSON\.stringify\(\{ query \}\)/);
   assert.match(api, /general_error/);
@@ -115,6 +117,8 @@ test("renders secondary and supplementary scientific charts (v6)", async () => {
   assert.match(supplementary, /T–S diagram/);
   assert.match(supplementary, /Seasonal cycle/);
   assert.match(supplementary, /Hovmöller heatmap/);
+  assert.match(supplementary, /<svg/);
+  assert.match(supplementary, /ReferenceArea/);
   // Region geometry comes from backend bounds, not a duplicated frontend table.
   assert.match(adapter, /regionContext\(location\.region_id, location\.bounds/);
   assert.doesNotMatch(adapter, /const REGION_BOUNDS/);
@@ -135,14 +139,18 @@ test("map fits selection geometry and stays accessible (v6)", async () => {
 });
 
 test("preserves the reduced-motion background and typed error guidance", async () => {
-  const [app, errorState, styles] = await Promise.all([
+  const [app, boundary, errorState, styles] = await Promise.all([
     readFile(new URL("src/components/FloatChatApp.tsx", root), "utf8"),
+    readFile(new URL("src/components/ResultErrorBoundary.tsx", root), "utf8"),
     readFile(new URL("src/components/ErrorState.tsx", root), "utf8"),
     readFile(new URL("src/globals.css", root), "utf8"),
   ]);
 
   assert.match(app, /className="background-video"/);
+  assert.match(app, /ResultErrorBoundary/);
+  assert.match(boundary, /could not be displayed/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
+  assert.match(styles, /@media \(max-width: 900px\)/);
   assert.match(errorState, /parse_error/);
   assert.match(errorState, /no_data/);
   assert.match(errorState, /general_error/);

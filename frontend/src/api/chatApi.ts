@@ -7,11 +7,12 @@ export interface ApiBounds {
 
 export interface ApiLocation {
   label: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number;
+  longitude: number;
   region_id: string | null;
   radius_km: number;
   bounds?: ApiBounds | null;
+  coordinate_precision?: number;
 }
 
 export interface ApiQueryParams {
@@ -200,7 +201,10 @@ export interface ChatApiError {
   };
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+// In production the FastAPI service also serves the built frontend, so the
+// safest default is the current origin. Vite proxies /chat during local
+// development; VITE_API_URL remains an explicit override for split deployments.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 export function isErrorResponse(value: unknown): value is ChatApiError {
   if (!value || typeof value !== "object" || !("error" in value)) return false;
@@ -223,31 +227,45 @@ export async function sendChatQuery(
   query: string,
   signal?: AbortSignal,
 ): Promise<ChatApiResponse | ChatApiError> {
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE}/chat`, {
+    response = await fetch(`${API_BASE}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
       signal,
     });
-    const payload: unknown = await response.json();
-    if (isErrorResponse(payload)) return payload;
-    if (response.ok && isSuccessResponse(payload)) return payload;
-    return {
-      error: {
-        type: "general_error",
-        message: "The server returned an unexpected response.",
-        suggestion: "Try again or check that the API and data artifacts are ready.",
-      },
-    };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     return {
       error: {
         type: "general_error",
         message: "The FloatChat-Lite API could not be reached.",
-        suggestion: "Start the API on port 8000 and try again.",
+        suggestion: "Check that the API is running and try again.",
       },
     };
   }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return {
+      error: {
+        type: "general_error",
+        message: "The server returned a response that FloatChat-Lite could not read.",
+        suggestion: "Try again or check that the API and data artifacts are ready.",
+      },
+    };
+  }
+
+  if (isErrorResponse(payload)) return payload;
+  if (response.ok && isSuccessResponse(payload)) return payload;
+  return {
+    error: {
+      type: "general_error",
+      message: "The server returned an unexpected response.",
+      suggestion: "Try again or check that the API and data artifacts are ready.",
+    },
+  };
 }

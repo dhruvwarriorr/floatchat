@@ -48,7 +48,7 @@ make dev-api
 make dev-web
 ```
 
-Configure Gemini in root `.env` using `GEMINI_API_KEY` or `FLOATCHAT_LLM_API_KEY`, `LLM_PROVIDER=gemini`, and a Gemini model. The browser never receives the key.
+Configure the optional parser in root `.env` with the single `FLOATCHAT_LLM_API_KEY`, plus `LLM_PROVIDER` and `LLM_MODEL`. The browser never receives the key.
 
 ## Remaining acceptance gates
 

@@ -43,6 +43,7 @@ export interface MapContext {
   coordinates: string;
   marker: { longitude: number; latitude: number };
   radiusKm?: number;
+  coordinatePrecision?: number;
   region?: {
     west: number;
     east: number;

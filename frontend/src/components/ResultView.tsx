@@ -16,7 +16,7 @@ const metadataIcons = [MapPinned, CalendarRange, Thermometer, ChartSpline];
 
 export function ResultView({ response }: { response: OceanResponse }) {
   const metadata = [
-    { label: response.metadata.coordinates === "Regional selection" ? "Region" : "Location", value: response.metadata.location, detail: response.metadata.coordinates },
+    { label: response.map.region ? "Region" : "Location", value: response.metadata.location, detail: response.metadata.coordinates },
     { label: "Period", value: response.metadata.period },
     { label: "Parameter", value: response.metadata.parameter },
     { label: "Result type", value: response.metadata.resultType },

@@ -75,6 +75,16 @@ PARAMETER_COLUMNS = {
     ],
 }
 
+# Paired T-S and density views need both adjusted measurements and both QC
+# flags. These four columns are intentionally included for every query while
+# raw unadjusted values remain parameter-scoped.
+PAIRED_SCIENCE_COLUMNS = [
+    "temp_adjusted",
+    "temp_adjusted_qc",
+    "psal_adjusted",
+    "psal_adjusted_qc",
+]
+
 
 def haversine_km(
     lat1: float,
@@ -235,7 +245,13 @@ class DataRepository:
 
     def _columns_for(self, parameter: Parameter | str) -> list[str]:
         value = parameter.value if isinstance(parameter, Parameter) else str(parameter)
-        requested = IDENTITY_COLUMNS + PARAMETER_COLUMNS.get(value, PARAMETER_COLUMNS["all"])
+        requested = list(
+            dict.fromkeys(
+                IDENTITY_COLUMNS
+                + PARAMETER_COLUMNS.get(value, PARAMETER_COLUMNS["all"])
+                + PAIRED_SCIENCE_COLUMNS
+            )
+        )
         available = set(self._load().schema.names)
         return [column for column in requested if column in available]
 

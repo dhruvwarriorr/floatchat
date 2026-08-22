@@ -6,6 +6,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
@@ -35,7 +36,7 @@ function TSDiagram({ data }: { data: NonNullable<ApiSupplementary["ts_diagram"]>
   return (
     <section className="supp-card" aria-label="Temperature–salinity diagram">
       <h4>T–S diagram</h4>
-      <p className="supp-sub">{data.profile_count} profiles • dot colour = pressure (dbar)</p>
+      <p className="supp-sub">How temperature and salinity occur together across {data.profile_count} profiles.</p>
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -52,6 +53,9 @@ function TSDiagram({ data }: { data: NonNullable<ApiSupplementary["ts_diagram"]>
           </ScatterChart>
         </ResponsiveContainer>
       </div>
+      <div className="depth-colour-key" aria-label={`Pressure colour scale from 0 to ${maxPressure.toFixed(0)} dbar`}>
+        <span>Shallow • 0 dbar</span><span className="bar" aria-hidden="true" /><span>Deep • {maxPressure.toFixed(0)} dbar</span>
+      </div>
     </section>
   );
 }
@@ -61,7 +65,7 @@ function DensityProfile({ data }: { data: NonNullable<ApiSupplementary["density_
   return (
     <section className="supp-card" aria-label="Density profile">
       <h4>Density profile</h4>
-      <p className="supp-sub">Approximate potential density (surface EOS)</p>
+      <p className="supp-sub">How tightly the sampled seawater is packed as depth increases.</p>
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} layout="vertical" margin={{ top: 10, right: 18, left: 8, bottom: 22 }}>
@@ -73,6 +77,7 @@ function DensityProfile({ data }: { data: NonNullable<ApiSupplementary["density_
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <p className="chart-explainer">Simplified temperature–salinity density estimate; pressure effects are omitted, so use the shape rather than treating it as a laboratory density result.</p>
     </section>
   );
 }
@@ -81,11 +86,12 @@ function HeatContent({ data }: { data: NonNullable<ApiSupplementary["heat_conten
   return (
     <section className="supp-card" aria-label="Ocean heat content">
       <h4>Ocean heat content</h4>
-      <p className="supp-sub">{data.depth_range} • {data.profile_count} profiles</p>
+      <p className="supp-sub">Integrated temperature through {data.depth_range} across {data.profile_count} profiles.</p>
       <div className="supp-kpi">
         <strong>{data.value_mj_per_m2.toFixed(0)}</strong>
         <span>MJ/m²</span>
       </div>
+      <p className="chart-explainer">A profile-based estimate for comparing selections; it is not a satellite heat-content product.</p>
     </section>
   );
 }
@@ -100,44 +106,57 @@ function Hovmoller({ data }: { data: NonNullable<ApiSupplementary["hovmoller"]> 
   const max = Math.max(...values);
   const span = max - min || 1;
   const lookup = new Map(data.grid.map((cell) => [`${cell.month}|${cell.depth_bin}`, cell.value]));
+  const cellWidth = 27;
+  const cellHeight = 29;
+  const plotLeft = 86;
+  const plotTop = 34;
+  const plotWidth = Math.max(1, months.length) * cellWidth;
+  const plotHeight = Math.max(1, bins.length) * cellHeight;
+  const svgWidth = plotLeft + plotWidth + 16;
+  const svgHeight = plotTop + plotHeight + 42;
+  const labelEvery = Math.max(1, Math.ceil(months.length / 12));
   return (
     <section className="supp-card" aria-label="Hovmöller depth–time heatmap">
       <h4>Hovmöller heatmap</h4>
-      <p className="supp-sub">{data.parameter.replaceAll("_", " ")} ({data.unit}) by depth and month</p>
-      <div className="hovmoller">
-        <table>
-          <thead>
-            <tr>
-              <th className="row-head">dbar \ month</th>
-              {months.map((month) => (
-                <th key={month}>{month.slice(2)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {bins.map(([bin]) => (
-              <tr key={bin}>
-                <th className="row-head">{bin}</th>
-                {months.map((month) => {
-                  const value = lookup.get(`${month}|${bin}`);
-                  return (
-                    <td
-                      key={month}
-                      title={value !== undefined ? `${month} ${bin} dbar: ${value.toFixed(2)} ${data.unit}` : "no data"}
-                      style={{ background: value === undefined ? "transparent" : rampColour((value - min) / span) }}
-                    />
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <p className="supp-sub">Read left to right for time and top to bottom for increasing pressure. Colour shows {data.parameter.replaceAll("_", " ")} ({data.unit}).</p>
+      <div className="hovmoller" aria-label="Scrollable depth by month heatmap">
+        <svg width={svgWidth} height={svgHeight} role="img" aria-label={`${data.parameter.replaceAll("_", " ")} by month and pressure bin`}>
+          <text x={12} y={18} className="heatmap-axis-title">Pressure</text>
+          {bins.map(([bin], rowIndex) => (
+            <text key={bin} x={plotLeft - 9} y={plotTop + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="end" className="heatmap-axis-label">{bin} dbar</text>
+          ))}
+          {months.map((month, columnIndex) => (
+            columnIndex % labelEvery === 0 || columnIndex === months.length - 1 ? (
+              <text key={month} x={plotLeft + columnIndex * cellWidth + cellWidth / 2} y={svgHeight - 10} textAnchor="middle" className="heatmap-axis-label">{month}</text>
+            ) : null
+          ))}
+          {bins.flatMap(([bin], rowIndex) => months.map((month, columnIndex) => {
+            const value = lookup.get(`${month}|${bin}`);
+            const description = value === undefined
+              ? `${month}, ${bin} dbar: no data`
+              : `${month}, ${bin} dbar: ${value.toFixed(2)} ${data.unit}`;
+            return (
+              <rect
+                key={`${month}-${bin}`}
+                x={plotLeft + columnIndex * cellWidth}
+                y={plotTop + rowIndex * cellHeight}
+                width={cellWidth - 1}
+                height={cellHeight - 1}
+                rx={2}
+                fill={value === undefined ? "rgba(159,184,202,0.08)" : rampColour((value - min) / span)}
+              >
+                <title>{description}</title>
+              </rect>
+            );
+          }))}
+        </svg>
       </div>
       <div className="hovmoller-legend">
         <span>{min.toFixed(1)}</span>
         <span className="bar" aria-hidden="true" />
         <span>{max.toFixed(1)} {data.unit}</span>
       </div>
+      <p className="chart-explainer">Blue cells are lower values and red cells are higher values within this selection; hover a cell for its exact month, depth and value.</p>
     </section>
   );
 }
@@ -151,7 +170,7 @@ function SeasonalCycle({ data }: { data: NonNullable<ApiSupplementary["seasonal_
   return (
     <section className="supp-card" aria-label="Seasonal cycle">
       <h4>Seasonal cycle</h4>
-      <p className="supp-sub">Monthly climatology across all years (± 1σ)</p>
+      <p className="supp-sub">Typical calendar-year pattern across all represented years; the shaded band is ±1 standard deviation.</p>
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -181,7 +200,7 @@ function YearOverYear({ data }: { data: NonNullable<ApiSupplementary["year_over_
   return (
     <section className="supp-card" aria-label="Year over year">
       <h4>Year-over-year</h4>
-      <p className="supp-sub">Monthly means compared across years</p>
+      <p className="supp-sub">Each coloured line is one year, making repeated seasonal shape and year-to-year shifts easier to compare.</p>
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -202,17 +221,25 @@ function YearOverYear({ data }: { data: NonNullable<ApiSupplementary["year_over_
 
 function AnomalyTrend({ data }: { data: NonNullable<ApiSupplementary["anomaly_trend"]> }) {
   const rows = data.series.map((point) => ({ label: point.month, z: point.z_score }));
+  const values = rows.map((row) => row.z);
+  const domainMin = Math.min(-3, Math.floor(Math.min(...values) - 0.5));
+  const domainMax = Math.max(3, Math.ceil(Math.max(...values) + 0.5));
   return (
     <section className="supp-card" aria-label="Anomaly trend">
       <h4>Anomaly trend</h4>
-      <p className="supp-sub">Monthly Z-score vs the production baseline</p>
+      <p className="supp-sub">Distance from the production baseline: green is within ±1.5σ, amber is provisional, and red is beyond ±2.5σ.</p>
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
             <CartesianGrid {...chartGrid} />
             <XAxis dataKey="label" {...chartAxis} minTickGap={24} />
-            <YAxis domain={["auto", "auto"]} {...chartAxis} label={{ value: "Z-score", angle: -90, position: "insideLeft", ...chartLabelStyle }} />
+            <YAxis domain={[domainMin, domainMax]} {...chartAxis} label={{ value: "Z-score", angle: -90, position: "insideLeft", ...chartLabelStyle }} />
             <Tooltip contentStyle={chartTooltip} />
+            <ReferenceArea y1={domainMin} y2={-2.5} fill="#e31a1c" fillOpacity={0.08} />
+            <ReferenceArea y1={-2.5} y2={-1.5} fill="#E0A940" fillOpacity={0.08} />
+            <ReferenceArea y1={-1.5} y2={1.5} fill="#2DD4C8" fillOpacity={0.06} />
+            <ReferenceArea y1={1.5} y2={2.5} fill="#E0A940" fillOpacity={0.08} />
+            <ReferenceArea y1={2.5} y2={domainMax} fill="#e31a1c" fillOpacity={0.08} />
             <ReferenceLine y={0} stroke="rgba(159,184,202,0.6)" />
             <ReferenceLine y={1.5} stroke="#E0A940" strokeDasharray="5 5" />
             <ReferenceLine y={-1.5} stroke="#E0A940" strokeDasharray="5 5" />
@@ -222,6 +249,7 @@ function AnomalyTrend({ data }: { data: NonNullable<ApiSupplementary["anomaly_tr
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <div className="anomaly-zone-key" aria-label="Anomaly threshold legend"><span className="normal">Within ±1.5σ</span><span className="mild">±1.5–2.5σ</span><span className="strong">Beyond ±2.5σ</span></div>
     </section>
   );
 }
