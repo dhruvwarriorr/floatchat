@@ -9,12 +9,31 @@
     "dataset_version": { "type": "string", "minLength": 1 },
     "source": {
       "type": "object",
-      "required": ["name", "url", "accessed_at", "provenance_notes"],
+      "required": ["name", "url", "accessed_at", "provenance_notes", "files"],
       "properties": {
         "name": { "type": "string" },
         "url": { "type": "string", "format": "uri" },
         "accessed_at": { "type": "string", "format": "date" },
-        "provenance_notes": { "type": "string" }
+        "provenance_notes": { "type": "string" },
+        "licence_note": { "type": "string" },
+        "acknowledgement": { "type": "string" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "sha256", "size_bytes", "input_rows"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "origin": { "type": "string", "minLength": 1 },
+              "source_url": { "type": "string", "format": "uri" },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "size_bytes": { "type": "integer", "minimum": 1 },
+              "input_rows": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -34,14 +53,16 @@
     },
     "evidence_grade_policy": {
       "type": "object",
-      "required": ["version", "insufficient_valid_profile_threshold", "baseline_min_n", "min_distinct_floats", "min_qc_pass_rate", "coverage_rule"],
+      "required": ["version", "reviewed", "insufficient_valid_profile_threshold", "baseline_min_n", "min_distinct_floats", "min_qc_pass_rate", "coverage_rule"],
       "properties": {
         "version": { "type": "string", "minLength": 1 },
+        "reviewed": { "type": "boolean" },
         "insufficient_valid_profile_threshold": { "type": "integer", "minimum": 1 },
         "baseline_min_n": { "type": ["integer", "null"], "minimum": 1 },
         "min_distinct_floats": { "type": ["integer", "null"], "minimum": 1 },
         "min_qc_pass_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
-        "coverage_rule": { "type": ["string", "null"] }
+        "coverage_rule": { "type": ["string", "null"] },
+        "validation_note": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -51,11 +72,13 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["path", "kind", "sha256"],
+        "required": ["path", "kind", "sha256", "size_bytes"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "kind": { "enum": ["profiles", "production_baseline", "validation_baseline"] },
-          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size_bytes": { "type": "integer", "minimum": 1 },
+          "row_count": { "type": "integer", "minimum": 0 }
         },
         "additionalProperties": false
       }

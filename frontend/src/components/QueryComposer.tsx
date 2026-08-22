@@ -1,16 +1,18 @@
 import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
+import { suggestedQueries } from "../data/suggestedQueries";
 
 interface QueryComposerProps {
   query: string;
   onQueryChange: (query: string) => void;
   onSubmit: () => void;
+  onSuggestedClick: (query: string) => void;
   onReset: () => void;
   isLoading: boolean;
   hasResult: boolean;
 }
 
-export function QueryComposer({ query, onQueryChange, onSubmit, onReset, isLoading, hasResult }: QueryComposerProps) {
+export function QueryComposer({ query, onQueryChange, onSubmit, onSuggestedClick, onReset, isLoading, hasResult }: QueryComposerProps) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
@@ -40,13 +42,27 @@ export function QueryComposer({ query, onQueryChange, onSubmit, onReset, isLoadi
           </button>
         </div>
         <div className="composer-meta">
-          <p className="composer-hint" id="query-hint">Include a location, parameter and time range in your question.</p>
+          <p className="composer-hint" id="query-hint">Include a location, parameter and time range. Installed observations cover the Arabian Sea.</p>
           {hasResult && (
             <button type="button" className="reset-button" onClick={onReset}>
               <RotateCcw size={13} aria-hidden="true" /> Ask another question
             </button>
           )}
         </div>
+        {!hasResult && !isLoading && (
+          <div className="suggested-chips" aria-label="Suggested ocean questions">
+            {suggestedQueries.map((suggestion) => (
+              <button
+                type="button"
+                className="suggested-chip"
+                key={suggestion}
+                onClick={() => onSuggestedClick(suggestion)}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
       </form>
     </div>
   );

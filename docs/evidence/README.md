@@ -1,8 +1,8 @@
 # Evidence and claim gate
 
-> Current status: `evidence-log.csv` contains no observed result rows.
+> Current status: `evidence-log.csv` contains local engineering observations. Every row remains `allowed_in_pitch=false` pending human review.
 
-No anomaly accuracy, precision, recall, F1, false-alert rate, query coverage, parser reliability, response latency, deployment, projector, cached-fallback, or rehearsal claim is verified.
+No anomaly accuracy, precision, recall, F1, false-alert rate, deployment, projector, cached-fallback, or rehearsal claim is approved. Local parser/API runs are recorded as negative-or-unreviewed engineering evidence only.
 
 ## Required quantitative evidence
 

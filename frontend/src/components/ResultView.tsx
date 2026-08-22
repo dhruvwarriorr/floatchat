@@ -1,10 +1,14 @@
 import { CalendarRange, ChartSpline, Lightbulb, MapPinned, Thermometer } from "lucide-react";
+import { lazy, Suspense } from "react";
 import type { OceanResponse } from "../types/ocean";
-import { DepthProfileChart, RegionalAverageView, TimeSeriesChart } from "./Charts";
 import { DataSufficiency } from "./DataSufficiency";
 import { ExplanationPanel } from "./ExplanationPanel";
-import { OceanMap } from "./OceanMap";
 import { StatusCard } from "./StatusCard";
+
+const DepthProfileChart = lazy(() => import("./Charts").then((module) => ({ default: module.DepthProfileChart })));
+const TimeSeriesChart = lazy(() => import("./Charts").then((module) => ({ default: module.TimeSeriesChart })));
+const RegionalAverageView = lazy(() => import("./Charts").then((module) => ({ default: module.RegionalAverageView })));
+const OceanMap = lazy(() => import("./OceanMap").then((module) => ({ default: module.OceanMap })));
 
 const metadataIcons = [MapPinned, CalendarRange, Thermometer, ChartSpline];
 
@@ -33,17 +37,31 @@ export function ResultView({ response }: { response: OceanResponse }) {
         })}
       </dl>
 
+      <div className="result-disclosures" aria-label="Result provenance disclosures">
+        {response.dataQualityWarning && (
+          <p className="quality-warning">Limited QC-passed data are available for this query.</p>
+        )}
+        {response.parserUsed === "rule_based" && (
+          <p className="parser-disclosure">Query parsed in deterministic simplified mode.</p>
+        )}
+        <p className="source-disclosure">{response.source}</p>
+      </div>
+
       <div className="insight-banner">
         <span><Lightbulb size={20} aria-hidden="true" /></span>
         <div><p>Plain-language insight</p><h3>{response.insight}</h3></div>
       </div>
 
       <div className="result-grid">
-        {response.id === "depth" && <DepthProfileChart response={response} />}
-        {(response.id === "sst" || response.id === "warming") && <TimeSeriesChart response={response} />}
-        {response.id === "salinity" && <RegionalAverageView response={response} />}
+        <Suspense fallback={<div className="visualization-loading">Preparing chart…</div>}>
+          {response.id === "depth" && <DepthProfileChart response={response} />}
+          {(response.id === "sst" || response.id === "warming") && <TimeSeriesChart response={response} />}
+          {response.id === "salinity" && <RegionalAverageView response={response} />}
+        </Suspense>
         <aside className="context-column">
-          <OceanMap context={response.map} />
+          <Suspense fallback={<div className="visualization-loading">Preparing map…</div>}>
+            <OceanMap context={response.map} />
+          </Suspense>
           <StatusCard response={response} />
         </aside>
       </div>

@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { resolveOceanQuery } from "../data/oceanResponses";
+import { adaptApiResponse } from "../api/adapter";
+import { isErrorResponse, sendChatQuery } from "../api/chatApi";
 import type { OceanResponse } from "../types/ocean";
 import { ErrorState } from "./ErrorState";
 import { Header } from "./Header";
@@ -10,45 +11,87 @@ import { ResultView } from "./ResultView";
 
 const stages = ["Ask", "Interpret", "Analyse", "Explain"];
 type ViewState = "idle" | "loading" | "success" | "error";
+interface ErrorInfo {
+  type: string;
+  message: string;
+  suggestion: string | null;
+}
 
 export function FloatChatApp() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewState>("idle");
   const [activeStep, setActiveStep] = useState(0);
   const [response, setResponse] = useState<OceanResponse | null>(null);
+  const [errorInfo, setErrorInfo] = useState<ErrorInfo | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const requestId = useRef(0);
+  const controller = useRef<AbortController | null>(null);
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => () => {
+    timers.current.forEach(clearTimeout);
+    controller.current?.abort();
+  }, []);
 
   const scrollToOutput = () => {
     requestAnimationFrame(() => outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  const submit = () => {
-    if (!query.trim() || view === "loading") return;
+  const submit = async (queryOverride?: string) => {
+    const submittedQuery = (queryOverride ?? query).trim();
+    if (!submittedQuery || view === "loading") return;
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    controller.current?.abort();
+    controller.current = new AbortController();
+    const activeRequest = ++requestId.current;
+    if (queryOverride) setQuery(queryOverride);
     setView("loading");
     setResponse(null);
+    setErrorInfo(null);
     setActiveStep(0);
     scrollToOutput();
 
-    timers.current.push(setTimeout(() => setActiveStep(1), 380));
-    timers.current.push(setTimeout(() => setActiveStep(2), 760));
-    timers.current.push(setTimeout(() => {
-      const matched = resolveOceanQuery(query);
-      setResponse(matched);
-      setView(matched ? "success" : "error");
+    timers.current.push(setTimeout(() => setActiveStep(1), 300));
+    timers.current.push(setTimeout(() => setActiveStep(2), 650));
+    try {
+      const result = await sendChatQuery(submittedQuery, controller.current.signal);
+      if (activeRequest !== requestId.current) return;
+      timers.current.forEach(clearTimeout);
+      timers.current = [];
+      setActiveStep(2);
+      if (isErrorResponse(result)) {
+        setErrorInfo(result.error);
+        setView("error");
+      } else {
+        setResponse(adaptApiResponse(result));
+        setView("success");
+      }
       scrollToOutput();
-    }, 1180));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setErrorInfo({
+          type: "general_error",
+          message: "The request was interrupted before an answer was available.",
+          suggestion: "Please try again.",
+        });
+        setView("error");
+      }
+    }
+  };
+
+  const submitSuggested = (suggestion: string) => {
+    void submit(suggestion);
   };
 
   const reset = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    requestId.current += 1;
+    controller.current?.abort();
     setQuery("");
     setResponse(null);
+    setErrorInfo(null);
     setView("idle");
     setActiveStep(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -94,7 +137,8 @@ export function FloatChatApp() {
         <QueryComposer
           query={query}
           onQueryChange={setQuery}
-          onSubmit={submit}
+          onSubmit={() => void submit()}
+          onSuggestedClick={submitSuggested}
           onReset={reset}
           isLoading={view === "loading"}
           hasResult={view === "success" || view === "error"}
@@ -104,7 +148,7 @@ export function FloatChatApp() {
       <div className="output-anchor" ref={outputRef}>
         {view === "loading" && <LoadingSequence activeStep={activeStep} />}
         {view === "success" && response && <ResultView response={response} />}
-        {view === "error" && <ErrorState />}
+        {view === "error" && <ErrorState errorInfo={errorInfo} />}
       </div>
 
       <footer>

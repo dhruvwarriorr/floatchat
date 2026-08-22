@@ -3,6 +3,29 @@ import type { Confidence, OceanResponse, ResponseKind } from "../types/ocean";
 const points = (labels: Array<string | number>, values: number[]) =>
   labels.map((label, index) => ({ label: String(label), value: values[index] }));
 
+const illustrativeTrust = (profileCount: number): Pick<
+  OceanResponse,
+  "evidenceGrade" | "evidenceGradeReasons" | "evidencePanel" | "dataQualityWarning" | "parserUsed" | "source"
+> => ({
+  evidenceGrade: profileCount <= 5 ? "Insufficient" : profileCount <= 20 ? "Indicative" : "Supported",
+  evidenceGradeReasons: ["legacy_illustrative_profile_count_only"],
+  evidencePanel: {
+    rawProfileCount: profileCount,
+    validProfileCount: profileCount,
+    excludedProfileCount: 0,
+    rawObservationCount: profileCount,
+    validObservationCount: profileCount,
+    excludedObservationCount: 0,
+    distinctFloatCount: 0,
+    qcPassRate: 1,
+    qcRule: "Illustrative legacy response; no real QC computation",
+    exclusionReasons: {},
+  },
+  dataQualityWarning: false,
+  parserUsed: "rule_based",
+  source: "Illustrative local response; not live scientific data",
+});
+
 export const confidenceForProfileCount = (profileCount: number): Confidence => {
   if (profileCount <= 5) return "Low";
   if (profileCount <= 20) return "Medium";
@@ -18,6 +41,7 @@ export const suggestedQueries = [
 
 export const oceanResponses: Record<ResponseKind, OceanResponse> = {
   depth: {
+    ...illustrativeTrust(18),
     id: "depth",
     query: suggestedQueries[0],
     interpretedQuery: "Temperature by depth near the Mumbai coast during July 2024",
@@ -45,6 +69,7 @@ export const oceanResponses: Record<ResponseKind, OceanResponse> = {
     },
   },
   sst: {
+    ...illustrativeTrust(34),
     id: "sst",
     query: suggestedQueries[1],
     interpretedQuery: "Annual shallow-water SST proxy at 19.0°N, 72.8°E from 2015 to 2024",
@@ -84,6 +109,7 @@ export const oceanResponses: Record<ResponseKind, OceanResponse> = {
     },
   },
   salinity: {
+    ...illustrativeTrust(24),
     id: "salinity",
     query: suggestedQueries[2],
     interpretedQuery: "Monthly average salinity across the Bay of Bengal during 2023",
@@ -120,6 +146,7 @@ export const oceanResponses: Record<ResponseKind, OceanResponse> = {
     },
   },
   warming: {
+    ...illustrativeTrust(27),
     id: "warming",
     query: suggestedQueries[3],
     interpretedQuery: "Ten-year temperature direction in illustrative Arabian Sea data",

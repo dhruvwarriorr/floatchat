@@ -1,11 +1,11 @@
 # Quantitative evaluation workspace
 
-This directory is the repository boundary for the two reproducible evaluations required by `docs/prd.md` Rev. B. It contains structure only; no dataset, notebook, result, accuracy, precision, reliability, or latency claim exists yet.
+This directory contains the frozen 24-prompt parser fixture, the schema-only anomaly case fixture, and ignored generated reports. No accuracy, precision, reliability, or latency claim is approved merely because a report was generated.
 
 ```text
 evaluation/
 ├── fixtures/    Frozen, small, reviewable labels/prompts/region definitions
-├── notebooks/   Reproducible comparison and reliability notebooks
+├── notebooks/   Optional reproducible notebooks
 └── results/     Generated reports; ignored until deliberately reviewed
 ```
 
@@ -13,6 +13,15 @@ evaluation/
 
 1. **Anomaly-method comparison:** on one fixed reviewed ARGO subset, compare a regional-average baseline, an unfiltered Z-score, and the full QC-filtered/evidence-graded pipeline. Report confusion counts, precision, recall, F1, false-alert rate, query coverage, and response time with the labeling method and denominator.
 2. **Parser/API reliability:** use 20–30 frozen paraphrases and repeated requests to report parsing success, invalid-output rate, deterministic behaviour with the LLM explicitly disabled, average/p95 latency, and no-data, sparse-data, malformed-date, and simulated-provider-failure outcomes.
+
+Commands:
+
+```bash
+.venv/bin/python scripts/test_parser_reliability.py
+.venv/bin/python scripts/evaluate_methods.py
+```
+
+The method comparison exits non-zero until `anomaly_cases.csv` contains reviewed labels and references. That failure is intentional.
 
 ## Rules
 

@@ -1,17 +1,17 @@
 # FloatChat-Lite API contract
 
-> Status: target Rev. B contract planned; legacy backend boundary partially implemented
-> Synchronized with `docs/ARCHITECTURE.md`, `docs/prd.md`, and `backend/app/` on 21 August 2026
+> Status: Rev. B runtime contract implemented; scientific/release acceptance remains gated
+> Synchronized with `backend/app/` and measured local artifacts on 22 August 2026
 
 ## Current reachable API
 
 | Method | Path | Status | Current behaviour |
 | --- | --- | --- | --- |
 | `GET` | `/health/live` | ✅ | Returns `200 {"status":"ok"}`. |
-| `GET` | `/health/ready` | 🟡 | Checks ready manifest status and declared file existence only; currently `503` because `data/manifest.json` is absent. |
-| `POST` | `/chat` | 🟡 | Validates input and runs the narrow deterministic parser, then returns `503 general_error`; no scientific success path exists. |
+| `GET` | `/health/ready` | ✅ | Validates manifest status, artifacts, profile schema, and production baseline. The current generated artifact set returns `200`. |
+| `POST` | `/chat` | ✅ / 🟡 | Runs parse → retrieval → QC → aggregation → baseline → grade → optional anomaly → provenance. In-coverage development selections return the full contract; uncovered locations return `404 no_data`. Release acceptance is not implied. |
 
-The browser does not call this API. `ChatResponse` now structurally defines Rev. B evidence-grade, panel, warning, baseline-`n`, and factual sufficiency fields, but no runtime path constructs it. Legacy profile-count `Confidence` remains internal to the current anomaly scaffold.
+The browser calls only this API through `frontend/src/api/chatApi.ts`; `frontend/src/api/adapter.ts` preserves the accepted component shape. Legacy illustrative responses remain stored but are not used by submission. `ChatResponse` is validated before every success is serialized.
 
 ## Request
 
@@ -55,6 +55,9 @@ The anomaly service must never receive QC-rejected records.
 | `answer_explanation` | Source, aggregation, dates, region/radius, proxy caveats, and plain-language interpretation. |
 | `parser_used` | `llm` or `rule_based`; fallback must be disclosed. |
 | `source` / dataset version | Reviewed artifact identity. |
+| `results_by_parameter` | Independent temperature/salinity data, grade, anomaly, QC, and evidence payloads when the query asks for both. |
+
+Every chart bin/month includes a bounded `trace` object with contributing profile IDs, float IDs, and source-file row references. The evidence panel also identifies the Parquet artifact and SHA-256.
 
 No numeric example in architecture or documentation is a measured response fixture.
 
@@ -64,7 +67,7 @@ No numeric example in architecture or documentation is a measured response fixtu
 - `Indicative`: scoring is possible, but distinct-float/spatial coverage is limited.
 - `Supported`: valid count, baseline `n`, distinct-float coverage, and QC pass rate all meet frozen thresholds.
 
-Only the fewer-than-five rule is currently specified quantitatively. Other thresholds must be frozen from the reviewed dataset and stored in one policy; do not invent them in API code or UI copy.
+The values supplied by the build specification are active: 5 valid profiles, baseline `n` 10, 2 distinct floats, and QC pass rate 0.30. The manifest records that these are implementation thresholds, not externally validated scientific cut-offs. `Insufficient` still suppresses the Z-score.
 
 ## Errors
 
@@ -81,16 +84,14 @@ Only the fewer-than-five rule is currently specified quantitatively. Other thres
 | Status | Type | Current state |
 | --- | --- | --- |
 | `422` | `parse_error` | Implemented for unsupported deterministic input. |
-| `404` | `no_data` | Modelled, but unreachable. Distinct from “records found but rejected/too thin after QC.” |
-| `503` | `general_error` | Implemented for absent/unimplemented scientific data path. |
-| `500` | `general_error` | Safe fallback exists but is not meaningfully exercised after successful repository work. |
+| `404` | `no_data` | Implemented for zero spatial/temporal matches; verified for Bay of Bengal with the installed exports. |
+| `503` | `general_error` | Implemented for missing/unreadable data artifacts. |
+| `500` | `general_error` | Sanitized unexpected-failure fallback; paths and traces are not returned. |
 
-## Contract migration gate
+## Remaining scientific/release gate
 
-1. Freeze ARGO QC flags, adjusted/raw precedence, `data_mode`, grade thresholds, and warning semantics.
-2. Review/freeze the structural target models without treating legacy frontend confidence as evidence grade.
-3. Implement and test QC → anomaly → grade → evidence-panel order.
-4. Freeze one reviewed real fixture per supported data variant.
-5. Reconcile `OceanResponse` and target `ChatResponse` contract-first.
-6. Add success, no-data, QC-warning, each grade, zero-std, validation, and trace-safety tests.
-7. Log quantitative/reliability acceptance in `evidence/evidence-log.csv`.
+1. Install exports covering the frozen Mumbai-50-km and Bay-of-Bengal selections, or approve a documented scope change.
+2. Review `data/coverage_report.json`, freeze all grade/spatial thresholds, and record the named reviewer.
+3. Create scientifically reviewed anomaly labels/references and run the three-method comparison.
+4. Run provider-enabled reliability, browser/projector, recovery, container, and rehearsal acceptance.
+5. Log only reviewed quantitative/release claims in `docs/evidence/evidence-log.csv`.

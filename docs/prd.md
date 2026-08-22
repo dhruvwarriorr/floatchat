@@ -56,7 +56,7 @@ Oceanographic ARGO data covering the Indian Ocean is publicly available but effe
 10. The system must return a real, expandable **"Why this result?" evidence panel** containing actual computed values and provenance (e.g., valid profile count, distinct float IDs, current-period mean, baseline mean/std/n, QC rule applied, Z-score) — not a natural-language template with no underlying numbers. This is documented as **computation transparency / provenance reporting**, never described as explainable AI (SHAP/LIME-style model attribution) unless that technique is actually added.
 11. The system must return an `answer_explanation` field describing the data source, aggregation method, and any proxy assumptions (e.g., SST derived from the shallowest measurement ≤10m).
 12. The system must return friendly, specific error messages for `no_data`, `parse_error`, and `general_error` cases — never a raw stack trace or generic failure.
-13. The frontend must render, for every response: a query summary header, a chart (Plotly.js), a map pin (Leaflet), an anomaly badge (when applicable), and an evidence panel (expandable) with a data-sufficiency line.
+13. The frontend must render, for every response: a query summary header, a Recharts chart, a map pin (Leaflet), an anomaly badge (when applicable), and an evidence panel (expandable) with a data-sufficiency line.
 14. The frontend must display a visible disclosure line when `parser_used == "rule_based"`, informing the user the query was parsed in a simplified/degraded mode.
 15. The anomaly model's production baseline must be computed once during preprocessing from the full available pre-query-year history (target 8–9 years) per region/month, and must never be conflated with the shorter 2015–2018 validation-only baseline used in `validate_heatwave.py`.
 16. The team must produce one reproducible evaluation notebook that, on a fixed ARGO subset and a fixed set of prompts/regions, compares three methods — (a) a simple regional-average baseline, (b) an unfiltered Z-score with no QC or evidence grading, and (c) FloatChat-Lite's full QC-filtered, evidence-graded pipeline — and reports precision, recall, F1, false-alert rate, query coverage, and response time for each. No claimed accuracy or precision figure may appear in the pitch or report unless it was produced by this notebook.
@@ -94,7 +94,7 @@ Oceanographic ARGO data covering the Indian Ocean is publicly available but effe
 - **INCOIS** (Indian National Centre for Ocean Information Services) — source of ARGO float CSV exports (temperature, salinity, pressure/depth, lat/lon, time, QC, adjusted values, and data mode), 2015–2024 subset.
 - **LLM API provider** (OpenAI GPT-4o-mini, Anthropic Claude, or a locally hosted Ollama Llama 3.1) — powers the primary query parser.
 - **Hugging Face Spaces** — hosting/deployment target for the demo.
-- **Plotly.js** and **Leaflet** — frontend charting and mapping libraries.
+- **Recharts** and **Leaflet** — frontend charting and mapping libraries.
 - **FastAPI, pandas, NumPy, PyArrow** — backend CSV processing and anomaly-scoring stack.
 
 ## 11. Risks

@@ -1,13 +1,11 @@
 # FloatChat-Lite interface design
 
-> Current accepted illustrative UI plus Rev. B target requirements
-> Last synchronized: 21 August 2026
+> Integrated Rev. B runtime interface
+> Last synchronized: 22 August 2026
 
 ## Current interface
 
-The current frontend is a local React/TypeScript/Vite demonstration using Recharts, a static Bhuvan image, and four bundled illustrative responses. It implements input/Enter submission, staged loading, success, one unsupported-query error, reset, charts, map context, a profile-count confidence gauge, status cards, and preparation text.
-
-It does **not** call `/chat`, render suggested-query chips, distinguish typed API errors, expose QC filtering, render `evidence_grade`, or provide the expandable Rev. B “Why this result?” evidence panel. Its Low/Medium/High confidence is legacy illustrative behaviour, not the target trust judgment.
+The frontend is a React/TypeScript/Vite runtime using Recharts and an interactive Leaflet/CARTO map. It calls `POST /chat`, renders suggested queries and typed errors, exposes QC/evidence state, supports Temperature/Salinity/All chart toggles, and provides an expandable “Why this result?” panel with displayed-value source traces.
 
 ## Target user flow
 
@@ -48,14 +46,9 @@ The expandable panel must show actual returned values, not decorative template c
 
 Call this computation transparency/provenance reporting. Do not market it as SHAP/LIME-style explainable AI.
 
-## Current/target library decision
+## Runtime library decision
 
-The updated architecture and PRD name Plotly.js and Leaflet, while the accepted repository uses Recharts and a static local Bhuvan image. This synchronization does not replace frontend libraries. Before implementation, the product/architecture owners must either:
-
-1. approve migration to Plotly/Leaflet and explicitly relax the accepted-UI boundary; or
-2. amend the target documents to allow the current libraries when they meet the same chart/geographic/evidence requirements.
-
-Until that decision, documents distinguish current implementation from target intent rather than claiming either library set is complete.
+The implementation keeps the established Recharts chart system and uses Leaflet for live geographic context. This avoids a chart rewrite while satisfying interactive pan/zoom, exact marker, radius, and named-region requirements.
 
 ## Accessibility and acceptance
 

@@ -1,21 +1,23 @@
+from pathlib import Path
+
+import pandas as pd
 import pytest
 
-from app.models import Confidence
-from app.services.anomaly import confidence_for_count, score_anomaly
-
-
-@pytest.mark.parametrize(
-    ("count", "expected"),
-    [
-        (1, Confidence.LOW),
-        (5, Confidence.LOW),
-        (6, Confidence.MEDIUM),
-        (20, Confidence.MEDIUM),
-        (21, Confidence.HIGH),
-    ],
+from app.services.anomaly import (
+    get_baseline_for_month,
+    load_production_baseline,
+    score_anomaly,
 )
-def test_confidence_boundaries(count: int, expected: Confidence) -> None:
-    assert confidence_for_count(count) is expected
+
+
+def baseline(std: float = 1.0) -> dict[str, float | int]:
+    return {
+        "mean": 0.0,
+        "std": std,
+        "n": 21,
+        "year_min": 2015,
+        "year_max": 2023,
+    }
 
 
 @pytest.mark.parametrize(
@@ -25,23 +27,56 @@ def test_confidence_boundaries(count: int, expected: Confidence) -> None:
         (1.5, "mild_positive"),
         (2.49, "mild_positive"),
         (2.5, "strong_positive"),
+        (-1.5, "mild_negative"),
         (-2.5, "strong_negative"),
     ],
 )
 def test_z_score_policy_boundaries(current: float, expected: str) -> None:
-    result = score_anomaly(current=current, baseline_mean=0, baseline_std=1, profile_count=21)
+    result = score_anomaly(current, baseline(), "temperature")
 
     assert result is not None
     assert result.label == expected
+    assert "marine heatwave" not in result.explanation.lower()
 
 
-def test_low_confidence_suppresses_severity() -> None:
-    result = score_anomaly(current=3, baseline_mean=0, baseline_std=1, profile_count=5)
+@pytest.mark.parametrize("standard_deviation", [0.0, -1.0])
+def test_invalid_standard_deviation_skips_scoring(standard_deviation: float) -> None:
+    assert score_anomaly(3.0, baseline(standard_deviation), "salinity") is None
+
+
+def test_runtime_rejects_validation_baseline(tmp_path: Path) -> None:
+    directory = tmp_path / "production"
+    directory.mkdir()
+    pd.DataFrame([{"baseline_type": "validation", "mean": 1.0, "std": 1.0, "n": 10}]).to_parquet(
+        directory / "baseline.parquet"
+    )
+
+    with pytest.raises(RuntimeError, match="Non-production"):
+        load_production_baseline(tmp_path)
+
+
+def test_baseline_lookup_returns_the_selected_calendar_month() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "parameter": "temperature",
+                "selection_type": "grid",
+                "selection_id": "grid-10-70",
+                "grid_lat": 10.0,
+                "grid_lon": 70.0,
+                "calendar_month": 7,
+                "mean": 27.5,
+                "std": 0.5,
+                "n": 24,
+                "distinct_float_count": 3,
+                "year_min": 2015,
+                "year_max": 2023,
+            }
+        ]
+    )
+
+    result = get_baseline_for_month(frame, "temperature", 7, latitude=10.0, longitude=70.0)
 
     assert result is not None
-    assert result.label == "insufficient_data"
-    assert result.show_severity is False
-
-
-def test_zero_standard_deviation_skips_scoring() -> None:
-    assert score_anomaly(current=3, baseline_mean=0, baseline_std=0, profile_count=21) is None
+    assert result["mean"] == 27.5
+    assert result["calendar_month"] == 7

@@ -1,5 +1,7 @@
 # FloatChat-Lite Beginner Development Roadmap
 
+> Historical build plan retained for sequencing context. Its “current starting point” is the pre-build snapshot; use [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md), [feature.md](feature.md), and [todo.md](todo.md) for verified runtime status.
+
 ## QC-Gated ARGO Exploration and Evidence Roadmap
 
 FloatChat-Lite is a narrow hackathon demonstration for conversational exploration of supported Indian Ocean ARGO temperature and salinity data. Its core scientific rule is:

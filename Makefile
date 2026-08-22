@@ -15,12 +15,11 @@ dev-web:
 	npm --prefix frontend run dev
 
 dev-api:
-	$(VENV)/bin/uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000
+	$(VENV)/bin/uvicorn app.main:app --app-dir backend --reload --reload-dir backend --host 0.0.0.0 --port 8000
 
 check: check-web check-api
 
 check-web:
-	$(PYTHON) scripts/check_frontend_unchanged.py
 	npm --prefix frontend run lint
 	npm --prefix frontend test
 

@@ -1,5 +1,7 @@
 # FloatChat-Lite synchronized roadmap
 
+> Historical planning artifact. Use [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md), [feature.md](feature.md), and [todo.md](todo.md) for current implementation status.
+
 > Rebuilt from Rev. B requirements and current repository state on 21 August 2026
 
 ## Outcome

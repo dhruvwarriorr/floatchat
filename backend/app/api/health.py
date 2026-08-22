@@ -16,7 +16,14 @@ def live() -> dict[str, str]:
 def ready() -> JSONResponse:
     repository = DataRepository(get_settings().data_dir)
     is_ready, reason = repository.readiness()
+    content: dict[str, object] = {
+        "status": "ready" if is_ready else "not_ready",
+        "reason": reason,
+    }
+    if is_ready:
+        content["coverage"] = repository.get_data_coverage()
+        content["dataset_version"] = repository.get_manifest_version()
     return JSONResponse(
         status_code=200 if is_ready else 503,
-        content={"status": "ready" if is_ready else "not_ready", "reason": reason},
+        content=content,
     )

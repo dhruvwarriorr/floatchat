@@ -1,11 +1,29 @@
 export type Confidence = "Low" | "Medium" | "High";
 export type ResponseKind = "depth" | "sst" | "salinity" | "warming";
+export type EvidenceGrade = "Insufficient" | "Indicative" | "Supported";
 
 export interface DataPoint {
   label: string;
   value: number;
   baseline?: number;
   trend?: number;
+  trace?: {
+    observationCount: number;
+    profileCount: number;
+    floatCount: number;
+    profileIds: string[];
+    floatIds: string[];
+    sourceRecords: string[];
+    truncated: boolean;
+  };
+}
+
+export interface ParameterSeries {
+  key: string;
+  label: string;
+  unit: string;
+  data: DataPoint[];
+  averageValue?: number;
 }
 
 export interface QueryMetadata {
@@ -20,6 +38,7 @@ export interface MapContext {
   label: string;
   coordinates: string;
   marker: { longitude: number; latitude: number };
+  radiusKm?: number;
   region?: {
     west: number;
     east: number;
@@ -49,6 +68,27 @@ export interface PreparationDetails {
   caveat?: string;
 }
 
+export interface EvidenceDetails {
+  rawProfileCount: number;
+  validProfileCount: number;
+  excludedProfileCount: number;
+  rawObservationCount: number;
+  validObservationCount: number;
+  excludedObservationCount: number;
+  distinctFloatCount: number;
+  qcPassRate: number;
+  qcRule: string;
+  exclusionReasons: Record<string, number>;
+  sourceVersion?: string;
+  selectionSummary?: string;
+  artifactPath?: string;
+  artifactSha256?: string;
+  contributingProfileIds?: string[];
+  contributingFloatIds?: string[];
+  sourceRecordSample?: string[];
+  traceSampleTruncated?: boolean;
+}
+
 export interface OceanResponse {
   id: ResponseKind;
   query: string;
@@ -69,4 +109,11 @@ export interface OceanResponse {
   map: MapContext;
   status?: StatusDetails;
   preparation: PreparationDetails;
+  evidenceGrade: EvidenceGrade;
+  evidenceGradeReasons: string[];
+  evidencePanel: EvidenceDetails;
+  dataQualityWarning: boolean;
+  parserUsed: "llm" | "rule_based";
+  source: string;
+  parameterSeries?: Record<string, ParameterSeries>;
 }

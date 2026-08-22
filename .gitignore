@@ -29,6 +29,8 @@ data/baselines/validation/*
 !data/baselines/validation/.gitkeep
 demo/cached/*
 !demo/cached/.gitkeep
+demo/cached_responses/*
+!demo/cached_responses/.gitkeep
 demo/screenshots/*
 !demo/screenshots/.gitkeep
 evaluation/results/*

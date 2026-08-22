@@ -1,75 +1,81 @@
 # FloatChat-Lite
 
-FloatChat-Lite is the hackathon implementation workspace for explainable conversational access to Indian Ocean ARGO observations.
+FloatChat-Lite is a stateless React/FastAPI workspace for explainable exploration of local Indian Ocean ARGO temperature and salinity observations. Its mandatory trust order is retrieval → ARGO QC/data-mode filtering → QC-passed aggregation → production-baseline lookup → evidence grade → computation-transparency panel.
 
-The repository now separates the already-built interface from the API, scientific data, deployment, evaluation, and demo evidence. The existing frontend was moved intact into `frontend/`; its source, assets, tests, and behaviour were not changed during this restructure.
+## Implemented
 
-## Current implementation status
+- React 19, TypeScript, Vite, Recharts, an interactive Leaflet/CARTO map, Temperature/Salinity/All chart toggles, typed API errors, suggested queries, QC warnings, evidence-grade presentation, parser disclosure, and expandable result provenance.
+- FastAPI/Pydantic `POST /chat`, a schema-constrained Gemini-first parser, deterministic parsing for 50+ Indian Ocean aliases and coordinates, failure-safe fallback, CORS, liveness, and data-aware readiness.
+- Chunked CSV preprocessing into a 165 MB Parquet artifact with source hashes, retained QC/data-mode fields, stable profile IDs, deduplication, and a versioned manifest.
+- Separate production and validation baseline artifacts with runtime protection against validation-baseline use.
+- Parquet retrieval, vectorized haversine/region filters, mandatory adjusted A/D QC filtering, independent multi-parameter profile/time-series/regional pipelines, Z-score policy, multi-signal grading, and point-to-source-row traceability.
+- 24-prompt parser reliability fixture, three-method evaluation command, and sanitized cache generation from actual API responses.
 
-- `frontend/` is the existing Vite demonstration and still uses bundled illustrative responses.
-- `backend/` is a runnable FastAPI foundation with health checks, the typed `/chat` boundary, a deterministic parser for the pinned query grammar, safe errors, tests, and explicit planned boundaries for QC filtering, evidence grading, and provenance composition.
-- A real, quality-controlled ARGO subset and its production/validation baselines are **not yet present**. The API reports that state honestly instead of returning invented scientific results.
-- `data/`, `scripts/`, `evaluation/`, `docs/`, and `demo/` establish the scientific, quantitative-evaluation, evidence, and release boundaries.
+## Current scientific acceptance
 
-## Repository map
+The installed 11 CSV exports contain 14,595,054 data rows before preprocessing and cover 7 November 2001 through 21 August 2026, 5.0–26.168°N, and 45.003–77.987°E. Preprocessing produced 14,413,526 observations, 77,172 profiles, and 531 floats.
 
-```text
-frontend/                 Existing React + TypeScript + Vite app
-backend/                  FastAPI contract, services, and tests
-  app/services/qc.py      Planned ARGO data-quality path before anomaly scoring
-  app/services/evidence.py Planned multi-signal evidence grading
-  app/services/explain.py Planned computation-transparency/provenance panel
-data/
-  raw/                    Local ARGO CSV source exports; ignored by Git
-  processed/              Versioned query-ready Parquet outputs
-  baselines/production/   Baselines used by live query responses
-  baselines/validation/   Separate known-event validation baselines
-scripts/                  Planned deterministic scientific/evaluation entrypoints
-evaluation/               Structure for frozen fixtures, notebooks, and generated reports
-docs/                     Architecture, contract, execution, and runbook guidance
-demo/                     Cached offline fallback and presentation captures
-deploy/                   Single-container deployment
-AGENTS.md                 Durable instructions for future contributors and agents
-```
+The installed source files are an **Arabian Sea subset**, not a complete Indian Ocean archive. They do not include the frozen Mumbai-within-50-km, Chennai, or Bay-of-Bengal selections; those questions return an honest typed `no_data`. Artifact readiness is independent of geographic completeness: the generated manifest is `ready` and `/health/ready` returns `200` when the declared Parquet and production baseline are present.
 
-## Local setup
+The evidence thresholds supplied in the build specification are implemented centrally: 5 valid profiles, baseline `n` 10, 2 distinct floats, and a 30% QC pass rate. They make the software behaviour reproducible but remain explicitly marked as not externally scientifically validated. Generated parser/evaluation reports are not pitch evidence until reviewed and copied unchanged into `docs/evidence/evidence-log.csv`.
+
+## Setup and build
 
 Requirements: Node.js 22.13+, Python 3.11+, and `make`.
 
 ```bash
 make setup
+.venv/bin/python scripts/preprocess_argo.py
+.venv/bin/python scripts/build_baselines.py
+make check
 ```
 
-Run the two development processes in separate terminals:
+For Gemini parsing, copy `.env.example` to `.env` and set either `GEMINI_API_KEY` or the existing `FLOATCHAT_LLM_API_KEY`. Keep `LLM_PROVIDER=gemini` and a Gemini model such as `gemini-2.5-flash`. The key is loaded only by FastAPI and must never use a `VITE_` prefix. If Gemini is missing, times out, reaches quota, or returns invalid output, the response safely discloses `parser_used=rule_based`.
+
+Run the API and web app in separate terminals:
 
 ```bash
-make dev-web
 make dev-api
+make dev-web
 ```
 
 - Web: `http://localhost:3000`
 - API docs: `http://localhost:8000/docs`
 - Liveness: `http://localhost:8000/health/live`
-- Data readiness: `http://localhost:8000/health/ready`
+- Artifact/release readiness: `http://localhost:8000/health/ready`
 
-The frontend is intentionally not wired to the API yet; contract integration begins only after a query-ready ARGO subset and frozen response fixtures exist.
+Suggested successful local queries:
 
-## Verification
-
-```bash
-make check
+```text
+Show temperature profile at 10N 70E within 150 km in July 2024
+Plot SST time series at 10N 70E within 150 km from 2015-2024 and tell me if it is unusual
+Show average salinity in the Arabian Sea in 2023
 ```
 
-This runs the existing frontend tests plus backend lint and tests. It does not prove scientific validity, live-provider reliability, projector acceptance, deployment health, or demo rehearsal success; those require recorded evidence in `docs/evidence/`.
+The first two use an explicit 150 km radius because the installed exports have no July 2024 profile within the frozen 50/100 km Mumbai selection.
 
-## Hackathon path
+## Evaluation and cache commands
 
-Read these before implementation:
+```bash
+.venv/bin/python scripts/test_parser_reliability.py
+.venv/bin/python scripts/evaluate_methods.py
+.venv/bin/python scripts/build_demo_cache.py
+```
 
-1. [Architecture](docs/ARCHITECTURE.md)
-2. [API contract](docs/API_CONTRACT.md)
-3. [48-hour execution plan](docs/HACKATHON_EXECUTION.md)
-4. [Demo runbook](docs/DEMO_RUNBOOK.md)
-5. The supplied `FloatChat-Lite_Project_Documentation.docx` and `FloatChat-Lite_Detailed_Project_Roadmap.docx`
+`evaluate_methods.py` intentionally fails until scientifically reviewed anomaly labels and references are added to `evaluation/fixtures/anomaly_cases.csv`. Cache files distinguish recorded output from a live response; cache generation preserves honest typed `no_data` for uncovered prescribed locations.
 
-The immediate critical path is real ARGO subset preparation -> explicit QC filtering -> separate baselines -> one deterministic profile query -> evidence-grade/provenance contract -> frontend integration -> quantitative evaluation. Do not add new product scope before that path works.
+## Repository map
+
+```text
+frontend/                 Accepted UI plus typed /chat integration
+backend/                  FastAPI contract, scientific stages, and tests
+data/raw/                 Local source CSV exports; ignored by Git
+data/processed/           Query-ready Parquet; ignored by Git
+data/baselines/           Separate production/validation artifacts; ignored by Git
+evaluation/fixtures/      Frozen parser prompts and anomaly-label schema
+evaluation/results/       Generated, unreviewed reports; ignored by Git
+demo/cached_responses/    Sanitized recorded API responses; ignored by Git
+docs/evidence/            Human-reviewed claim gate
+```
+
+Do not commit or push automatically. Do not expose provider keys, call a sparse-profile Z-score a marine heatwave, or describe the provenance panel as SHAP/LIME-style explainable AI.

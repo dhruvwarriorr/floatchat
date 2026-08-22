@@ -1,24 +1,24 @@
 # FloatChat-Lite feature status
 
-> Synchronized to Rev. B and current source on 21 August 2026
+> Synchronized to Rev. B, current source, and measured local artifacts on 22 August 2026
 
 ## Status summary
 
 | Feature | Status | Current state | Remaining work |
 | --- | --- | --- | --- |
-| Illustrative UI | ✅ illustrative | Four local Recharts/static-map flows with legacy confidence | Preserve; migrate only after reviewed target fixtures and frontend-library decision. |
-| Data preprocessing/manifest | 🔴 | Structure/schema only | Retain auditable QC/data-mode fields; build reviewed artifacts. |
-| Deterministic parser | ✅ narrow | Four phrase families | Expand only to frozen data coverage; reliability evaluation missing. |
-| Optional LLM parser | 🟠 | Environment placeholders/enum | One validated adapter, model-disabled fallback, failure/latency evidence. |
-| Scientific retrieval | 🔴 | Readiness/refusal boundary | Parquet schema/filter/aggregation and `no_data`. |
-| QC Filter | 🟠 structure | `services/qc.py` boundary only | Freeze rules; implement audit output and tests before anomaly. |
-| Anomaly Model | 🟡 legacy | Isolated Z-score/profile-count policy | Accept QC-passed aggregate only; baseline `n`; remove trust judgment. |
-| Evidence Grade | 🟠 structure | `services/evidence.py` boundary only | Target models, centralized thresholds/reasons, tests. |
-| Evidence panel | 🟠 structure | `services/explain.py`; illustrative preparation UI | Compose actual QC/count/baseline/score/provenance values; expandable UI. |
-| API errors/health | 🟡 | Live/ready, parse/general | Success, no-data, QC-warning, integrity readiness. |
-| Frontend/API integration | 🔴 | No client; contracts diverge | Freeze target real fixtures and preserve accepted behaviour. |
-| Quantitative evaluation | 🟠 structure | Empty `evaluation/` workspace | Labels, notebooks, three-method metrics, parser/API reliability. |
-| Deployment/demo | 🟡 / 🟠 | Recipe/placeholders | Verified run, cache, projector/recovery/rehearsal evidence. |
+| Integrated UI | ✅ implemented | Recharts plus Leaflet/CARTO, multi-parameter toggles, and typed `/chat` adapter | Browser/projector acceptance remains. |
+| Data preprocessing/manifest | ✅ query-ready | 14.4M-row Arabian-Sea Parquet, hashes, coverage report, separate baselines | Licence review still blocks public redistribution. |
+| Deterministic parser | ✅ implemented | Gazetteer, coordinates, dates, types, and disclosed fallback | Generated report requires review. |
+| Gemini LLM parser | 🟡 implemented/unaccepted | Schema-constrained server-only Gemini parser plus deterministic failover | Provider-enabled evidence requires a valid authorized credential. |
+| Scientific retrieval | ✅ implemented | Column-pruned Parquet spatial/date filters and `no_data` | Release data coverage remains incomplete. |
+| QC Filter | ✅ implemented | Auditable position/mode/adjusted-QC/value rules | Manual profile review remains. |
+| Anomaly Model | ✅ implemented/gated | Production-only Z-score over QC aggregates | External scientific validation remains. |
+| Evidence Grade | ✅ implemented | Build-spec thresholds, multi-signal logic, suppression, and reasons | Thresholds remain marked as not externally validated. |
+| Evidence panel | ✅ implemented | Actual counts, QC, selection, aggregate, baseline, artifact hash, source rows, and point trace | Browser/projector acceptance remains. |
+| API errors/health | ✅ implemented | Success, typed errors, warnings, schema-aware readiness | Arabian-Sea artifact readiness returns 200. |
+| Frontend/API integration | ✅ implemented | Typed adapter preserves accepted layout and components | Release fixture/browser acceptance remains. |
+| Quantitative evaluation | 🟡 tools/fixture | 24 parser prompts and comparison command | Reviewed anomaly labels/references and evidence approval remain. |
+| Deployment/demo | 🟡 | Container recipe and sanitized generated cache | Container/projector/recovery/rehearsal evidence remains. |
 
 ## QC Filter: data-quality path
 
@@ -28,7 +28,7 @@
 
 **Dependencies:** reviewed ARGO variables, accepted QC flags, data-mode policy, profile identity, provenance, and fixtures.
 
-**Status:** structure only. No rule is implemented. Thresholds/flags must not be guessed.
+**Status:** implemented and tested. The adjusted A/D, QC=1 rule and build-spec grade thresholds are auditable; external scientific validation is still separate.
 
 ## Anomaly Model: ocean-event path
 
@@ -36,7 +36,7 @@
 
 **Flow:** QC-passed aggregate → `(x-mean)/std` → normal/mild/strong positive or negative. Skip zero standard deviation or insufficient evidence. Never label this a marine heatwave.
 
-**Status:** legacy isolated function exists but currently combines profile-count confidence with anomaly presentation and is not QC-gated.
+**Status:** implemented behind the QC aggregate boundary with production-baseline safety and zero-standard-deviation handling. Scoring is suppressed whenever evidence is Insufficient.
 
 ## Evidence Grade
 
@@ -46,7 +46,7 @@
 
 **Presentation:** `Insufficient` suppresses severity; `Indicative` is provisional; `Supported` requires every frozen condition.
 
-**Status:** structure only; only the fewer-than-five insufficient rule is quantitatively frozen.
+**Status:** build-spec thresholds and reasons are implemented centrally. Their source and external-validation caveat are recorded in the manifest.
 
 ## Computation-transparency panel
 
@@ -54,7 +54,9 @@
 
 **Required values:** selection/source/version, QC rule, raw/valid/excluded counts, distinct floats, pass rate, current aggregate, baseline period/mean/std/`n`, score/label, grade/reasons, parser, and proxy caveats.
 
-**Status:** frontend has illustrative preparation text, not a real evidence panel.
+**Status:** implemented with actual API counts, selection, QC, aggregate, baseline,
+grade decision, parser, source version, and proxy caveats. Browser/projector
+acceptance remains outstanding because no local browser runtime was available.
 
 ## Quantitative evaluation
 
@@ -62,7 +64,12 @@
 
 **Reliability:** 20–30 paraphrases; model disabled, malformed output, fallback, invalid rate, average/p95 latency, no/sparse data, malformed date, simulated provider failure.
 
-**Status:** directory structure only; no metrics exist.
+**Status:** the 24-prompt parser suite and five API scenarios generate an
+unreviewed report covering disabled parsing, simulated provider failure,
+no-data, sparse-data, malformed-date, and latency behavior. The three-method
+command is implemented and deliberately exits until reviewed anomaly labels and
+references exist. Provider-enabled behavior and all scientific metrics remain
+unaccepted.
 
 ## Other feature details
 
@@ -70,5 +77,6 @@
 - Production and validation baselines never mix.
 - Target success/API/frontend migration follows [API contract](API_CONTRACT.md).
 - Typed errors remain `parse_error`, `no_data`, and `general_error`; a data-quality warning is successful-result context, not an internal error.
-- Regional average and optional LLM remain lower priority than the QC-gated deterministic core.
+- Regional average and one optional server-side LLM parser are implemented but
+  remain scientifically/provider gated behind the deterministic core.
 - Auth, persistence, multilingual, other ocean domains, mobile/WhatsApp, advanced ML, and scaling remain deferred.

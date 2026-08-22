@@ -11,7 +11,7 @@ The system is deliberately built around **two separate paths after data retrieva
 
 ```mermaid
 graph TD
-    Client[React + TS Frontend<br/>Chat UI, Plotly.js, Leaflet] -->|POST /chat| API[FastAPI Backend]
+    Client[React + TS Frontend<br/>Chat UI, Recharts, Leaflet] -->|POST /chat| API[FastAPI Backend]
     API --> Parser[LLM Query Parser]
     Parser -->|failure/timeout| Fallback[Rule-Based Parser<br/>gazetteer + regex]
     Parser --> Data[Data Layer<br/>get_profile / get_regional_average / get_time_series]
@@ -34,7 +34,7 @@ graph TD
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Frontend | React + TypeScript, Plotly.js (charts), Leaflet (maps) | Fast to build a chat UI with interactive charts/maps; both libraries are well-documented and demo-reliable |
+| Frontend | React + TypeScript, Recharts (charts), Leaflet (maps) | Typed interactive charts and maps with the established application component system |
 | Backend / API | Python 3.10+, FastAPI | Async-friendly, minimal boilerplate, fast to stand up endpoints in a hackathon timeframe |
 | Query Parsing | Direct LLM API calls (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) — no LangChain | Direct calls mean fewer abstraction layers and failure modes than a framework; easier to debug live |
 | Data Processing | pandas, NumPy | Standard scientific Python stack for validating INCOIS CSV exports and producing query-able tables |
@@ -46,9 +46,9 @@ graph TD
 ## 4. Component Breakdown
 
 ### 4.1 React Frontend (Chat UI)
-- **Responsibility:** Collects the user's natural-language query, sends it to `POST /chat`, and renders the response — query summary header, Plotly chart, Leaflet map pin, `AnomalyBadge` component, explanation footer, and data-sufficiency line. Also renders the degraded-mode disclosure line when `parser_used == "rule_based"`.
+- **Responsibility:** Collects the user's natural-language query, sends it to `POST /chat`, and renders the response — query summary header, Recharts chart, Leaflet map pin, anomaly status, explanation footer, and data-sufficiency line. Also renders the degraded-mode disclosure line when `parser_used == "rule_based"`.
 - **Interfaces:** Calls `POST /chat` on the FastAPI backend; consumes the full Response JSON contract (Section 6).
-- **Depends on:** FastAPI Backend; Plotly.js and Leaflet as rendering libraries.
+- **Depends on:** FastAPI Backend; Recharts and Leaflet as rendering libraries.
 
 ### 4.2 FastAPI Backend
 - **Responsibility:** Orchestrates the full request lifecycle — receives the query, invokes the parser (with fallback), calls the Data Layer, invokes the Anomaly Model when relevant, assembles the Explainability Layer output, and returns the final JSON. Also converts internal failures into the three friendly error types (`no_data`, `parse_error`, `general_error`).
