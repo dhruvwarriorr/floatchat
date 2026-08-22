@@ -45,6 +45,7 @@ The anomaly service must never receive QC-rejected records.
 
 | Field | Purpose |
 | --- | --- |
+| `interpreted_title` | Compact query-specific heading derived from validated parameters; it describes the accepted question rather than reusing the result summary. |
 | `summary` | Plain-language restatement of the answer. |
 | `query_type` / `params` | Validated query vocabulary and selection. |
 | `data` | Chart-ready result; variants must be frozen from reviewed real fixtures. |

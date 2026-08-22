@@ -205,6 +205,7 @@ class ParameterResult(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    interpreted_title: str
     summary: str
     query_type: QueryType
     params: QueryParams

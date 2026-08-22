@@ -39,7 +39,7 @@ export function ExplanationPanel({ response }: { response: OceanResponse }) {
             {" "}distinct ARGO floats.
           </p>
           <p>
-            <strong>Quality control:</strong> Applied {panel.qcRule}.{" "}
+            <strong>Quality control:</strong> {panel.qcRule}.{" "}
             {panel.excludedProfileCount > 0
               ? `${panel.excludedProfileCount} profiles were excluded${exclusionText ? ` (${exclusionText})` : ""}.`
               : "All retrieved profiles passed QC."}

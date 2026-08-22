@@ -61,6 +61,37 @@ REGION_NAMES: dict[str, tuple[str, str]] = {
 # repository returns an honest no-data response when its local subset has no
 # observations near an anchor.
 GAZETTEER: dict[str, tuple[float, float, str]] = {
+    # Indian state names resolve to sea-facing Arabian Sea search anchors.
+    "gujarat": (22.0, 69.0, "Gujarat coast"),
+    "maharashtra": (17.5, 73.0, "Maharashtra coast"),
+    "karnataka": (13.5, 74.5, "Karnataka coast"),
+    "kerala": (9.5, 76.0, "Kerala coast"),
+    # Gujarat coast.
+    "kandla": (23.03, 70.22, "Kandla coast"),
+    "jamnagar": (22.47, 70.07, "Jamnagar coast"),
+    "okha": (22.47, 69.07, "Okha coast"),
+    "bhavnagar": (21.77, 72.15, "Bhavnagar coast"),
+    "mundra": (22.84, 69.72, "Mundra coast"),
+    "diu": (20.71, 70.98, "Diu coast"),
+    "daman": (20.42, 72.84, "Daman coast"),
+    # Maharashtra coast.
+    "ratnagiri": (16.99, 73.30, "Ratnagiri coast"),
+    "alibaug": (18.64, 72.87, "Alibaug coast"),
+    "sindhudurg": (16.35, 73.45, "Sindhudurg coast"),
+    "dahanu": (19.97, 72.72, "Dahanu coast"),
+    # Karnataka coast.
+    "karwar": (14.81, 74.13, "Karwar coast"),
+    "udupi": (13.34, 74.75, "Udupi coast"),
+    # Kerala coast, including common historic aliases.
+    "kannur": (11.87, 75.37, "Kannur coast"),
+    "kasaragod": (12.50, 74.99, "Kasaragod coast"),
+    "alappuzha": (9.49, 76.33, "Alappuzha coast"),
+    "alleppey": (9.49, 76.33, "Alappuzha coast"),
+    "kollam": (8.89, 76.60, "Kollam coast"),
+    "quilon": (8.89, 76.60, "Kollam coast"),
+    "thrissur": (10.53, 75.98, "Thrissur coast"),
+    # Goa spelling variant.
+    "panaji": (15.49, 73.83, "Goa coast"),
     "gulf of oman": (24.0, 58.5, "Gulf of Oman"),
     "gulf of aden": (12.5, 48.0, "Gulf of Aden"),
     "port blair": (11.62, 92.73, "Port Blair"),
@@ -164,7 +195,7 @@ PROFILE_PHRASES = (
 TIME_SERIES_PHRASES = (
     "time series", "trend", "over time", "over the years", "history", "historical",
     "historically", "changing", "changed", "change", "increasing", "decreasing",
-    "rising", "falling", "compare", "comparison", "compared with normal",
+    "rising", "falling", "warming", "cooling", "compare", "comparison", "compared with normal",
     "compared to normal", "warmer than usual",
 )
 REGIONAL_PHRASES = (
@@ -177,7 +208,8 @@ ANOMALY_PHRASES = (
     "warmer than usual", "colder than usual", "hotter than usual", "cooler than usual",
     "warmer than normal", "colder than normal", "than usual", "than normal",
     "compared with normal", "compared to normal", "baseline", "typical",
-    "historical average", "is it warming", "is it cooling", "has it changed",
+    "historical average", "is it warming", "is it cooling", "warming", "cooling",
+    "getting warmer", "getting cooler", "has it changed",
     "getting saltier", "getting fresher", "saltier than", "fresher than",
     "abnormal", "unusually", "compare", "comparison",
 )
@@ -310,6 +342,9 @@ not widen a region. Do not enlarge a radius to find data.
 LOCATION: exactly one of a point (lat/lon, region_id null) or a named region
 (region_id set, lat/lon null). For known places use the application's canonical
 coordinates listed here: {canonical_places}. Named regions: {region_ids}.
+Indian state names (Gujarat, Maharashtra, Karnataka, Kerala, Goa) resolve to the
+application-provided midpoint of their Arabian Sea coastline. Use only the
+canonical coordinates listed above.
 If a location cannot be resolved to the Indian Ocean, return unsupported.
 
 UNSUPPORTED: return query_type="unsupported" for weather forecasts, rainfall,
@@ -370,6 +405,14 @@ def build_few_shot_examples() -> list[tuple[str, dict[str, object]]]:
              "lat": 15.49, "lon": 73.83, "region_id": None, "location_label": "Goa coast",
              "date_from": "2021-01-01", "date_to": "2021-12-31",
              "radius_km": 100, "include_anomaly": False},
+        ),
+        (
+            "show me temperature near Gujarat in 2024",
+            {"query_type": "profile", "parameters": ["temperature"],
+             "lat": 22.0, "lon": 69.0, "region_id": None,
+             "location_label": "Gujarat coast", "date_from": "2024-01-01",
+             "date_to": "2024-12-31", "radius_km": 100,
+             "include_anomaly": False},
         ),
         (
             "show chlorophyll near Goa in 2024",

@@ -171,6 +171,7 @@ export interface ApiParameterResult {
 }
 
 export interface ChatApiResponse {
+  interpreted_title?: string;
   summary: string;
   query_type: "profile" | "time_series" | "regional_average";
   params: ApiQueryParams;

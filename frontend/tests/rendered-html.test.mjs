@@ -66,18 +66,21 @@ test("renders clickable, coverage-aware suggested questions", async () => {
 });
 
 test("adapts QC, evidence, parser, anomaly, and source fields", async () => {
-  const [adapter, types, result] = await Promise.all([
+  const [adapter, api, types, result] = await Promise.all([
     readFile(new URL("src/api/adapter.ts", root), "utf8"),
+    readFile(new URL("src/api/chatApi.ts", root), "utf8"),
     readFile(new URL("src/types/ocean.ts", root), "utf8"),
     readFile(new URL("src/components/ResultView.tsx", root), "utf8"),
   ]);
 
+  assert.match(api, /interpreted_title\?: string/);
   assert.match(types, /EvidenceGrade/);
   assert.match(types, /evidencePanel: EvidenceDetails/);
   assert.match(adapter, /evidence_grade_reasons/);
   assert.match(adapter, /qc_pass_rate/);
   assert.match(adapter, /parserUsed: response\.parser_used/);
   assert.match(adapter, /source: response\.source/);
+  assert.match(adapter, /interpretedQuery: response\.interpreted_title \|\| response\.summary/);
   assert.match(result, /dataQualityWarning/);
   assert.match(result, /parserUsed === "rule_based"/);
   assert.match(result, /source-disclosure/);
@@ -96,6 +99,8 @@ test("shows real provenance in an expandable computation-transparency panel", as
   assert.match(panel, /rawProfileCount/);
   assert.match(panel, /qcPassRate/);
   assert.match(panel, /QC rule/);
+  assert.match(panel, /<strong>Quality control:<\/strong> \{panel\.qcRule\}/);
+  assert.doesNotMatch(panel, /Applied \{panel\.qcRule\}/);
   // Section 2 renamed to a collapsed "Data Source" block (v6 reorganization).
   assert.match(panel, /<summary>Data Source<\/summary>/);
   assert.doesNotMatch(panel, /explainable AI/i);
@@ -104,11 +109,12 @@ test("shows real provenance in an expandable computation-transparency panel", as
 });
 
 test("renders secondary and supplementary scientific charts (v6)", async () => {
-  const [result, secondary, supplementary, adapter] = await Promise.all([
+  const [result, secondary, supplementary, adapter, styles] = await Promise.all([
     readFile(new URL("src/components/ResultView.tsx", root), "utf8"),
     readFile(new URL("src/components/SecondaryCharts.tsx", root), "utf8"),
     readFile(new URL("src/components/SupplementaryCharts.tsx", root), "utf8"),
     readFile(new URL("src/api/adapter.ts", root), "utf8"),
+    readFile(new URL("src/globals.css", root), "utf8"),
   ]);
 
   assert.match(result, /<SecondaryCharts response=\{response\} \/>/);
@@ -118,7 +124,14 @@ test("renders secondary and supplementary scientific charts (v6)", async () => {
   assert.match(supplementary, /Seasonal cycle/);
   assert.match(supplementary, /Hovmöller heatmap/);
   assert.match(supplementary, /<svg/);
+  assert.match(supplementary, /heatmapLayout/);
+  assert.match(supplementary, /regular-count-/);
+  assert.match(supplementary, /tickFormatter=\{\(value: number\) => value\.toFixed\(1\)\}/);
   assert.match(supplementary, /ReferenceArea/);
+  assert.match(styles, /grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.supplementary-grid > \.hovmoller-card/);
+  assert.match(styles, /\.result-grid > \.chart-block \.chart-canvas/);
+  assert.ok(result.indexOf("<StatusCard response={response} />") > result.indexOf("</aside>"));
   // Region geometry comes from backend bounds, not a duplicated frontend table.
   assert.match(adapter, /regionContext\(location\.region_id, location\.bounds/);
   assert.doesNotMatch(adapter, /const REGION_BOUNDS/);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from calendar import month_abbr
 from datetime import date
 
 from fastapi import APIRouter
@@ -90,18 +91,73 @@ def _baseline_month(params: QueryParams, agg_data: dict[str, object]) -> int:
     return date.fromisoformat(params.date_to or "2026-12-31").month
 
 
+def _location_detail(params: QueryParams) -> str:
+    if (
+        not params.location.region_id
+        and params.location.latitude is not None
+        and params.location.longitude is not None
+    ):
+        latitude = params.location.latitude
+        longitude = params.location.longitude
+        location_detail = (
+            f"{params.location.label} "
+            f"({abs(latitude):.1f}°{'N' if latitude >= 0 else 'S'}, "
+            f"{abs(longitude):.1f}°{'E' if longitude >= 0 else 'W'}, "
+            f"{params.location.radius_km:g} km radius)"
+        )
+        return location_detail
+    return params.location.label
+
+
 def _summary(params: QueryParams, agg_data: dict[str, object], grade: EvidenceGrade) -> str:
     unit = str(agg_data.get("unit", ""))
     current = agg_data.get("current_value")
     result_name = params.query_type.value.replace("_", " ")
+    location_detail = _location_detail(params)
     if current is None:
         return (
-            f"Matching records were found for {params.location.label}, but no QC-passed "
+            f"Matching records were found for {location_detail}, but no QC-passed "
             f"{result_name} value could be calculated. Evidence is {grade.value.lower()}."
         )
     return (
-        f"The QC-passed {result_name} result for {params.location.label} has a representative "
+        f"The QC-passed {result_name} result for {location_detail} has a representative "
         f"value of {float(current):.2f} {unit}. Evidence is {grade.value.lower()}."
+    )
+
+
+def _interpreted_title(params: QueryParams) -> str:
+    """Return a compact title that describes the accepted question, not its result."""
+
+    if len(params.parameters) > 1:
+        parameter_name = "Temperature & salinity"
+    elif params.parameter is Parameter.SHALLOW_SST_PROXY:
+        parameter_name = "Shallow SST proxy"
+    elif params.parameter is Parameter.SALINITY:
+        parameter_name = "Salinity"
+    else:
+        parameter_name = "Temperature"
+
+    qualifier = {
+        QueryType.PROFILE: " profile",
+        QueryType.TIME_SERIES: " trend",
+        QueryType.REGIONAL_AVERAGE: " average",
+    }[params.query_type]
+    preposition = "across" if params.location.region_id else "near"
+
+    date_part = ""
+    if params.date_from and params.date_to:
+        year_from, year_to = params.date_from[:4], params.date_to[:4]
+        if params.date_from[:7] == params.date_to[:7]:
+            month = month_abbr[int(params.date_from[5:7])]
+            date_part = f", {month} {year_from}"
+        elif year_from == year_to:
+            date_part = f", {year_from}"
+        elif int(year_to) - int(year_from) <= 20:
+            date_part = f", {year_from}–{year_to}"
+
+    return (
+        f"{parameter_name}{qualifier} {preposition} "
+        f"{params.location.label}{date_part}"
     )
 
 
@@ -287,9 +343,10 @@ def chat(request: ChatRequest) -> JSONResponse:
         if len(results) > 1:
             summary = (
                 f"Temperature and salinity were analysed independently for "
-                f"{params.location.label}; switch the chart to inspect either result."
+                f"{_location_detail(params)}; switch the chart to inspect either result."
             )
         response = ChatResponse(
+            interpreted_title=_interpreted_title(params),
             summary=summary,
             query_type=params.query_type,
             params=params,

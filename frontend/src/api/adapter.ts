@@ -173,7 +173,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
   return {
     id: responseKind(response),
     query: response.summary,
-    interpretedQuery: response.summary,
+    interpretedQuery: response.interpreted_title || response.summary,
     metadata: {
       location: location.label,
       coordinates: coordinates(response),

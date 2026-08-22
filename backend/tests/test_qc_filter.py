@@ -63,6 +63,12 @@ def test_filter_is_auditable_and_rejected_extremes_do_not_survive() -> None:
         "null_adjusted_value": 1,
     }
     assert result.data_quality_warning is True
+    assert result.qc_rule_applied == (
+        "Only profiles with a valid recorded position, adjusted or delayed-mode data, "
+        "a good quality flag for the selected measurement, and an available adjusted "
+        "value were included"
+    )
+    assert "position_qc" not in result.qc_rule_applied
 
 
 def test_empty_frame_returns_warning_and_zero_counts() -> None:

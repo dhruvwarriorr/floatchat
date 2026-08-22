@@ -64,9 +64,10 @@ export function ResultView({ response }: { response: OceanResponse }) {
           <Suspense fallback={<div className="visualization-loading">Preparing map…</div>}>
             <OceanMap context={response.map} />
           </Suspense>
-          <StatusCard response={response} />
         </aside>
       </div>
+
+      <StatusCard response={response} />
 
       <DataSufficiency response={response} />
 

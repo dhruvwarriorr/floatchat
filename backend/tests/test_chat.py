@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient, Response
 import app.api.chat as chat_module
 from app.config import EvidenceGradeThresholds, Settings
 from app.main import app
+from app.services.parser import parse_rule_based
 
 
 @pytest.fixture(autouse=True)
@@ -146,6 +147,8 @@ def test_success_response_contains_complete_trust_contract(
 
     assert response.status_code == 200
     body = response.json()
+    assert body["interpreted_title"] == "Temperature profile near Mumbai coast, Jul 2024"
+    assert "Mumbai coast (19.0°N, 72.8°E, 100 km radius)" in body["summary"]
     assert body["query_type"] == "profile"
     assert body["evidence_grade"] == "Supported"
     assert body["parser_used"] == "rule_based"
@@ -162,6 +165,23 @@ def test_success_response_contains_complete_trust_contract(
     )
     assert body["params"]["location"]["coordinate_precision"] == 2
     assert "traceback" not in response.text.lower()
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("temperature near Mumbai in 2024", "Temperature profile near Mumbai coast, 2024"),
+        ("is the Arabian Sea warming?", "Temperature trend across Arabian Sea"),
+        ("is the Arabian Sea getting warmer?", "Temperature trend across Arabian Sea"),
+        ("salinity near Goa in July 2024", "Salinity profile near Goa coast, Jul 2024"),
+        (
+            "temperature and salinity near Kochi from 2020 to 2024",
+            "Temperature & salinity trend near Kochi coast, 2020–2024",
+        ),
+    ],
+)
+def test_interpreted_title_describes_the_accepted_query(query: str, expected: str) -> None:
+    assert chat_module._interpreted_title(parse_rule_based(query)) == expected
 
 
 def test_anomaly_uses_qc_passed_aggregate_and_production_baseline(

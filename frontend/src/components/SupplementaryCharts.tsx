@@ -16,7 +16,9 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { useEffect, useRef, useState } from "react";
 import type { ApiSupplementary } from "../api/chatApi";
+import { heatmapLayout } from "../utils/heatmap";
 import { chartAxis, chartGrid, chartLabelStyle, chartTooltip } from "./Charts";
 
 // Blue (cold/low) -> red (warm/high) ramp shared by the T-S dots and heatmap.
@@ -70,7 +72,7 @@ function DensityProfile({ data }: { data: NonNullable<ApiSupplementary["density_
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} layout="vertical" margin={{ top: 10, right: 18, left: 8, bottom: 22 }}>
             <CartesianGrid {...chartGrid} vertical />
-            <XAxis type="number" dataKey="density" domain={["dataMin", "dataMax"]} {...chartAxis} label={{ value: "kg/m³", position: "insideBottom", offset: -12, ...chartLabelStyle }} />
+            <XAxis type="number" dataKey="density" domain={["dataMin", "dataMax"]} tickCount={4} tickFormatter={(value: number) => value.toFixed(1)} {...chartAxis} label={{ value: "kg/m³", position: "insideBottom", offset: -12, ...chartLabelStyle }} />
             <YAxis type="number" dataKey="depth" domain={[0, "dataMax"]} reversed {...chartAxis} label={{ value: "dbar", angle: -90, position: "insideLeft", ...chartLabelStyle }} />
             <Tooltip contentStyle={chartTooltip} labelFormatter={(depth) => `${depth} dbar`} />
             <Line isAnimationActive={false} dataKey="density" type="monotone" stroke="#C084FC" strokeWidth={2.5} dot={{ r: 2.5, fill: "#C084FC" }} connectNulls />
@@ -97,6 +99,8 @@ function HeatContent({ data }: { data: NonNullable<ApiSupplementary["heat_conten
 }
 
 function Hovmoller({ data }: { data: NonNullable<ApiSupplementary["hovmoller"]> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(960);
   const months = Array.from(new Set(data.grid.map((cell) => cell.month))).sort();
   const bins = Array.from(
     new Map(data.grid.map((cell) => [cell.depth_bin, cell.depth_mid ?? 0])).entries(),
@@ -106,29 +110,41 @@ function Hovmoller({ data }: { data: NonNullable<ApiSupplementary["hovmoller"]> 
   const max = Math.max(...values);
   const span = max - min || 1;
   const lookup = new Map(data.grid.map((cell) => [`${cell.month}|${cell.depth_bin}`, cell.value]));
-  const cellWidth = 27;
-  const cellHeight = 29;
-  const plotLeft = 86;
-  const plotTop = 34;
-  const plotWidth = Math.max(1, months.length) * cellWidth;
+  const layout = heatmapLayout(containerWidth, months.length);
+  const cellHeight = 32;
+  const plotTop = 38;
   const plotHeight = Math.max(1, bins.length) * cellHeight;
-  const svgWidth = plotLeft + plotWidth + 16;
-  const svgHeight = plotTop + plotHeight + 42;
-  const labelEvery = Math.max(1, Math.ceil(months.length / 12));
+  const svgHeight = plotTop + plotHeight + 48;
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return undefined;
+
+    const measure = () => setContainerWidth(element.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="supp-card" aria-label="Hovmöller depth–time heatmap">
+    <section className="supp-card hovmoller-card" aria-label="Hovmöller depth–time heatmap">
       <h4>Hovmöller heatmap</h4>
       <p className="supp-sub">Read left to right for time and top to bottom for increasing pressure. Colour shows {data.parameter.replaceAll("_", " ")} ({data.unit}).</p>
-      <div className="hovmoller" aria-label="Scrollable depth by month heatmap">
-        <svg width={svgWidth} height={svgHeight} role="img" aria-label={`${data.parameter.replaceAll("_", " ")} by month and pressure bin`}>
-          <text x={12} y={18} className="heatmap-axis-title">Pressure</text>
+      {/* Keyboard focus is required when a long timeline creates a scrollable region. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <div ref={containerRef} className="hovmoller" role="region" aria-label="Scrollable depth by month heatmap" tabIndex={0}>
+        <svg width={layout.svgWidth} height={svgHeight} role="img" aria-label={`${data.parameter.replaceAll("_", " ")} by month and pressure bin`}>
+          <text x={14} y={21} className="heatmap-axis-title">Pressure</text>
           {bins.map(([bin], rowIndex) => (
-            <text key={bin} x={plotLeft - 9} y={plotTop + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="end" className="heatmap-axis-label">{bin} dbar</text>
+            <text key={bin} x={layout.plotLeft - 12} y={plotTop + rowIndex * cellHeight + cellHeight / 2 + 4} textAnchor="end" className="heatmap-axis-label">{bin} dbar</text>
           ))}
-          {months.map((month, columnIndex) => (
-            columnIndex % labelEvery === 0 || columnIndex === months.length - 1 ? (
-              <text key={month} x={plotLeft + columnIndex * cellWidth + cellWidth / 2} y={svgHeight - 10} textAnchor="middle" className="heatmap-axis-label">{month}</text>
-            ) : null
+          {layout.labelIndexes.map((columnIndex) => (
+            <text key={months[columnIndex]} x={layout.plotLeft + columnIndex * layout.cellWidth + layout.cellWidth / 2} y={svgHeight - 12} textAnchor="middle" className="heatmap-axis-label">{months[columnIndex]}</text>
           ))}
           {bins.flatMap(([bin], rowIndex) => months.map((month, columnIndex) => {
             const value = lookup.get(`${month}|${bin}`);
@@ -138,9 +154,9 @@ function Hovmoller({ data }: { data: NonNullable<ApiSupplementary["hovmoller"]> 
             return (
               <rect
                 key={`${month}-${bin}`}
-                x={plotLeft + columnIndex * cellWidth}
+                x={layout.plotLeft + columnIndex * layout.cellWidth}
                 y={plotTop + rowIndex * cellHeight}
-                width={cellWidth - 1}
+                width={layout.cellWidth - 1}
                 height={cellHeight - 1}
                 rx={2}
                 fill={value === undefined ? "rgba(159,184,202,0.08)" : rampColour((value - min) / span)}
@@ -258,10 +274,18 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export function SupplementaryCharts({ data }: { data?: ApiSupplementary }) {
   if (!data || Object.keys(data).length === 0) return null;
+  const regularCount = [
+    data.ts_diagram,
+    data.seasonal_cycle,
+    data.density_profile,
+    data.anomaly_trend,
+    data.year_over_year,
+    data.heat_content,
+  ].filter(Boolean).length;
   return (
     <div className="supplementary-charts">
       <p className="section-kicker">Supplementary scientific views</p>
-      <div className="supplementary-grid">
+      <div className={`supplementary-grid regular-count-${regularCount}`}>
         {data.ts_diagram && <TSDiagram data={data.ts_diagram} />}
         {data.seasonal_cycle && <SeasonalCycle data={data.seasonal_cycle} />}
         {data.density_profile && <DensityProfile data={data.density_profile} />}

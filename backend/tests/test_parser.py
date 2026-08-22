@@ -69,8 +69,48 @@ def test_city_gazetteer_matches(location: str) -> None:
     assert parsed.location.longitude is not None
 
 
-def test_deterministic_parser_has_at_least_50_place_aliases() -> None:
-    assert len(GAZETTEER) >= 50
+def test_deterministic_parser_has_at_least_75_place_aliases() -> None:
+    assert len(GAZETTEER) >= 75
+
+
+@pytest.mark.parametrize(
+    ("place", "latitude", "longitude", "label"),
+    [
+        ("Gujarat", 22.0, 69.0, "Gujarat coast"),
+        ("Maharashtra", 17.5, 73.0, "Maharashtra coast"),
+        ("Karnataka", 13.5, 74.5, "Karnataka coast"),
+        ("Kerala", 9.5, 76.0, "Kerala coast"),
+        ("Kandla", 23.03, 70.22, "Kandla coast"),
+        ("Jamnagar", 22.47, 70.07, "Jamnagar coast"),
+        ("Okha", 22.47, 69.07, "Okha coast"),
+        ("Bhavnagar", 21.77, 72.15, "Bhavnagar coast"),
+        ("Mundra", 22.84, 69.72, "Mundra coast"),
+        ("Diu", 20.71, 70.98, "Diu coast"),
+        ("Daman", 20.42, 72.84, "Daman coast"),
+        ("Ratnagiri", 16.99, 73.30, "Ratnagiri coast"),
+        ("Alibaug", 18.64, 72.87, "Alibaug coast"),
+        ("Sindhudurg", 16.35, 73.45, "Sindhudurg coast"),
+        ("Dahanu", 19.97, 72.72, "Dahanu coast"),
+        ("Karwar", 14.81, 74.13, "Karwar coast"),
+        ("Udupi", 13.34, 74.75, "Udupi coast"),
+        ("Kannur", 11.87, 75.37, "Kannur coast"),
+        ("Kasaragod", 12.50, 74.99, "Kasaragod coast"),
+        ("Alappuzha", 9.49, 76.33, "Alappuzha coast"),
+        ("Alleppey", 9.49, 76.33, "Alappuzha coast"),
+        ("Kollam", 8.89, 76.60, "Kollam coast"),
+        ("Quilon", 8.89, 76.60, "Kollam coast"),
+        ("Thrissur", 10.53, 75.98, "Thrissur coast"),
+        ("Panaji", 15.49, 73.83, "Goa coast"),
+    ],
+)
+def test_arabian_sea_coastal_gazetteer_entries(
+    place: str, latitude: float, longitude: float, label: str
+) -> None:
+    parsed = parse_rule_based(f"Show temperature near {place} in 2024")
+
+    assert parsed.location.latitude == latitude
+    assert parsed.location.longitude == longitude
+    assert parsed.location.label == label
 
 
 @pytest.mark.parametrize("location", sorted(GAZETTEER))
