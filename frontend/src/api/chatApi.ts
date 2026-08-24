@@ -23,6 +23,8 @@ export interface ApiQueryParams {
   year_start: number | null;
   year_end: number | null;
   month: number | null;
+  calendar_month: number | null;
+  season: "monsoon" | "post-monsoon" | "pre-monsoon" | "summer" | "winter" | null;
   anomaly_requested: boolean;
   date_from: string | null;
   date_to: string | null;
@@ -106,12 +108,32 @@ export interface ApiEvidencePanel {
   source_version: string | null;
   selection_summary: string | null;
   aggregation_method: string | null;
+  depth_bins_used: string[];
+  aggregation_counts_per_bin: Record<string, number>;
+  baseline_grid_cell: ApiBounds | null;
+  baseline_selection_id: string | null;
+  baseline_month_used: number | null;
+  baseline_distinct_float_count: number | null;
+  evidence_checks: Array<{
+    key: string;
+    label: string;
+    value: number | string | null;
+    threshold: number | string | null;
+    passed: boolean | null;
+    detail: string;
+  }>;
   proxy_caveat: string | null;
   artifact_path: string | null;
   artifact_sha256: string | null;
   contributing_profile_ids: string[];
   contributing_float_ids: string[];
   source_record_sample: string[];
+  float_positions: Array<{
+    float_id: string;
+    latitude: number;
+    longitude: number;
+    profile_count: number;
+  }>;
   trace_sample_truncated: boolean;
 }
 
@@ -120,34 +142,41 @@ export interface ApiSupplementary {
     points: Array<{ temperature: number; salinity: number; pressure: number | null; profile_id: string }>;
     profile_count: number;
     float_count: number;
+    aggregation_method: string;
   };
   density_profile?: {
     bins: Array<{ depth_bin: string; depth_mid: number; density: number; unit: string }>;
+    aggregation_method: string;
   };
   heat_content?: {
     value_mj_per_m2: number;
     profile_count: number;
     depth_range: string;
+    aggregation_method: string;
   };
   hovmoller?: {
     grid: Array<{ month: string; depth_bin: string; depth_mid: number | null; value: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   seasonal_cycle?: {
     months: Array<{ month: number; month_label: string; mean: number; std: number; count: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   year_over_year?: {
     years: Record<string, Array<{ month: number; month_label: string; value: number }>>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   anomaly_trend?: {
     series: Array<{ month: string; z_score: number; label: string; current_value: number; baseline_mean: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
 }
 
@@ -199,6 +228,24 @@ export interface ChatApiError {
     type: string;
     message: string;
     suggestion: string | null;
+    understanding?: string | null;
+    understood?: {
+      location_label: string;
+      latitude: number | null;
+      longitude: number | null;
+      region_id: string | null;
+      radius_km: number;
+      date_from: string;
+      date_to: string;
+      calendar_month: number | null;
+      season: string | null;
+      parameters: string[];
+      query_type: string;
+    } | null;
+    searched?: string | null;
+    records_found?: number | null;
+    nearest_available_km?: number | null;
+    suggested_query?: string | null;
   };
 }
 

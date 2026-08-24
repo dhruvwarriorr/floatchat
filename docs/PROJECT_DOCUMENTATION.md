@@ -1,6 +1,6 @@
 # FloatChat-Lite project documentation
 
-> Current-state entry point, synchronized 22 August 2026
+> Current-state entry point, synchronized 24 August 2026
 
 ## Overview
 
@@ -8,7 +8,7 @@ FloatChat-Lite is a stateless React/FastAPI MVP for natural-language exploration
 
 ```text
 query → Gemini schema parser or deterministic fallback
-      → Parquet retrieval → adjusted A/D QC filter
+      → Parquet retrieval → recurring month/season filter → adjusted A/D QC filter
       → per-profile aggregation → production baseline
       → evidence grade → response and point-level provenance
 ```
@@ -17,13 +17,13 @@ query → Gemini schema parser or deterministic fallback
 
 | Area | Current implementation |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, Recharts, Leaflet/CARTO, suggested queries, typed failures, multi-parameter toggles, evidence and source traces. |
+| Frontend | React 19, TypeScript, Vite, Recharts, Leaflet/CARTO with actual contributing floats, suggested queries, diagnostic typed failures, multi-parameter toggles, evidence/source traces, chart explainers, and a clickable glossary. |
 | API | FastAPI/Pydantic `POST /chat`, CORS, sanitized 404/422/500/503 responses, liveness, and artifact-aware readiness. |
-| Parsing | Gemini structured JSON with server-only credentials; 50+ deterministic aliases/regions and coordinate/date grammar on any provider failure. |
+| Parsing | Optional structured JSON planning with server-only credentials; deterministic canonical geography/parameters/radius and 114 aliases plus named regions, coordinates, compound temporal grammar, safety rejection, and fallback. |
 | Data | 14,413,526 query-ready observations, 77,172 profiles, 531 floats, versioned manifest, artifact hashes, and column-pruned Parquet scans. |
 | Science | Mandatory adjusted A/D QC, profile/time-series/regional aggregation, production-only Z-score, evidence-grade suppression, and shallow-proxy caveat. |
 | Traceability | Dataset/source, artifact SHA-256, selection, QC counts/reasons, profile/float IDs, and source-row samples for every displayed chart point. |
-| Evaluation | Frozen 24-query parser fixture, API safety scenarios, live-provider cap, three-method comparison command, and reproducible notebook. |
+| Evaluation | Frozen 59-query parser fixture, five API safety scenarios, live-provider cap, three-method comparison command, and reproducible notebook. |
 
 ## Data boundary
 

@@ -16,10 +16,11 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApiSupplementary } from "../api/chatApi";
 import { heatmapLayout } from "../utils/heatmap";
 import { chartAxis, chartGrid, chartLabelStyle, chartTooltip } from "./Charts";
+import { ChartExplanation } from "./Transparency";
 
 // Blue (cold/low) -> red (warm/high) ramp shared by the T-S dots and heatmap.
 const RAMP = ["#2c7fb8", "#41b6c4", "#7fcdbb", "#c7e9b4", "#fed976", "#fd8d3c", "#e31a1c"];
@@ -31,6 +32,7 @@ function rampColour(fraction: number): string {
 }
 
 const YEAR_COLOURS = ["#2DD4C8", "#EBD096", "#60A5FA", "#F472B6", "#A3E635", "#FB923C", "#C084FC"];
+const countNoun = (count: number, singular: string) => `${count} ${singular}${count === 1 ? "" : "s"}`;
 
 function TSDiagram({ data }: { data: NonNullable<ApiSupplementary["ts_diagram"]> }) {
   const pressures = data.points.map((point) => point.pressure ?? 0);
@@ -38,7 +40,12 @@ function TSDiagram({ data }: { data: NonNullable<ApiSupplementary["ts_diagram"]>
   return (
     <section className="supp-card" aria-label="Temperature–salinity diagram">
       <h4>T–S diagram</h4>
-      <p className="supp-sub">How temperature and salinity occur together across {data.profile_count} profiles.</p>
+      <p className="supp-sub">How temperature and salinity occur together across {countNoun(data.profile_count, "profile")}.</p>
+      <ChartExplanation
+        kind="ts_diagram"
+        method={data.aggregation_method}
+        inputs={`${data.points.length} paired observations from ${countNoun(data.profile_count, "profile")} and ${countNoun(data.float_count, "float")}.`}
+      />
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -68,6 +75,11 @@ function DensityProfile({ data }: { data: NonNullable<ApiSupplementary["density_
     <section className="supp-card" aria-label="Density profile">
       <h4>Density profile</h4>
       <p className="supp-sub">How tightly the sampled seawater is packed as depth increases.</p>
+      <ChartExplanation
+        kind="density_profile"
+        method={data.aggregation_method}
+        inputs={`${data.bins.length} represented pressure bins.`}
+      />
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} layout="vertical" margin={{ top: 10, right: 18, left: 8, bottom: 22 }}>
@@ -88,7 +100,12 @@ function HeatContent({ data }: { data: NonNullable<ApiSupplementary["heat_conten
   return (
     <section className="supp-card" aria-label="Ocean heat content">
       <h4>Ocean heat content</h4>
-      <p className="supp-sub">Integrated temperature through {data.depth_range} across {data.profile_count} profiles.</p>
+      <p className="supp-sub">Integrated temperature through {data.depth_range} across {countNoun(data.profile_count, "profile")}.</p>
+      <ChartExplanation
+        kind="heat_content"
+        method={data.aggregation_method}
+        inputs={`${countNoun(data.profile_count, "profile")} through ${data.depth_range}.`}
+      />
       <div className="supp-kpi">
         <strong>{data.value_mj_per_m2.toFixed(0)}</strong>
         <span>MJ/m²</span>
@@ -135,6 +152,11 @@ function Hovmoller({ data }: { data: NonNullable<ApiSupplementary["hovmoller"]> 
     <section className="supp-card hovmoller-card" aria-label="Hovmöller depth–time heatmap">
       <h4>Hovmöller heatmap</h4>
       <p className="supp-sub">Read left to right for time and top to bottom for increasing pressure. Colour shows {data.parameter.replaceAll("_", " ")} ({data.unit}).</p>
+      <ChartExplanation
+        kind="hovmoller"
+        method={data.aggregation_method}
+        inputs={`${data.grid.length} represented month-by-pressure cells.`}
+      />
       {/* Keyboard focus is required when a long timeline creates a scrollable region. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
       <div ref={containerRef} className="hovmoller" role="region" aria-label="Scrollable depth by month heatmap" tabIndex={0}>
@@ -187,6 +209,11 @@ function SeasonalCycle({ data }: { data: NonNullable<ApiSupplementary["seasonal_
     <section className="supp-card" aria-label="Seasonal cycle">
       <h4>Seasonal cycle</h4>
       <p className="supp-sub">Typical calendar-year pattern across all represented years; the shaded band is ±1 standard deviation.</p>
+      <ChartExplanation
+        kind="seasonal_cycle"
+        method={data.aggregation_method}
+        inputs={`${data.months.length} represented calendar months.`}
+      />
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -217,6 +244,11 @@ function YearOverYear({ data }: { data: NonNullable<ApiSupplementary["year_over_
     <section className="supp-card" aria-label="Year over year">
       <h4>Year-over-year</h4>
       <p className="supp-sub">Each coloured line is one year, making repeated seasonal shape and year-to-year shifts easier to compare.</p>
+      <ChartExplanation
+        kind="year_over_year"
+        method={data.aggregation_method}
+        inputs={`${Object.keys(data.years).length} represented years.`}
+      />
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -244,6 +276,11 @@ function AnomalyTrend({ data }: { data: NonNullable<ApiSupplementary["anomaly_tr
     <section className="supp-card" aria-label="Anomaly trend">
       <h4>Anomaly trend</h4>
       <p className="supp-sub">Distance from the production baseline: green is within ±1.5σ, amber is provisional, and red is beyond ±2.5σ.</p>
+      <ChartExplanation
+        kind="anomaly_trend"
+        method={data.aggregation_method}
+        inputs={`${data.series.length} monthly Z-scores with matching production-baseline months.`}
+      />
       <div className="supp-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 10, right: 18, left: 4, bottom: 22 }}>
@@ -274,24 +311,28 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export function SupplementaryCharts({ data }: { data?: ApiSupplementary }) {
   if (!data || Object.keys(data).length === 0) return null;
-  const regularCount = [
-    data.ts_diagram,
-    data.seasonal_cycle,
-    data.density_profile,
-    data.anomaly_trend,
-    data.year_over_year,
-    data.heat_content,
-  ].filter(Boolean).length;
+  const regularCards: ReactNode[] = [];
+  if (data.ts_diagram) regularCards.push(<TSDiagram key="ts" data={data.ts_diagram} />);
+  if (data.seasonal_cycle) regularCards.push(<SeasonalCycle key="seasonal" data={data.seasonal_cycle} />);
+  if (data.density_profile) regularCards.push(<DensityProfile key="density" data={data.density_profile} />);
+  if (data.anomaly_trend) regularCards.push(<AnomalyTrend key="anomaly" data={data.anomaly_trend} />);
+  if (data.year_over_year) regularCards.push(<YearOverYear key="years" data={data.year_over_year} />);
+  if (data.heat_content) regularCards.push(<HeatContent key="heat" data={data.heat_content} />);
+
+  const regularCount = regularCards.length;
+  const columnCount = regularCount <= 1 ? 1 : regularCount === 2 || regularCount === 4 ? 2 : 3;
+  const columns = Array.from({ length: columnCount }, () => [] as ReactNode[]);
+  regularCards.forEach((card, index) => columns[index % columnCount].push(card));
+
   return (
     <div className="supplementary-charts">
       <p className="section-kicker">Supplementary scientific views</p>
       <div className={`supplementary-grid regular-count-${regularCount}`}>
-        {data.ts_diagram && <TSDiagram data={data.ts_diagram} />}
-        {data.seasonal_cycle && <SeasonalCycle data={data.seasonal_cycle} />}
-        {data.density_profile && <DensityProfile data={data.density_profile} />}
-        {data.anomaly_trend && <AnomalyTrend data={data.anomaly_trend} />}
-        {data.year_over_year && <YearOverYear data={data.year_over_year} />}
-        {data.heat_content && <HeatContent data={data.heat_content} />}
+        <div className={`supplementary-columns column-count-${columnCount}`}>
+          {columns.map((column, index) => (
+            <div className="supplementary-column" key={index}>{column}</div>
+          ))}
+        </div>
         {data.hovmoller && <Hovmoller data={data.hovmoller} />}
       </div>
     </div>

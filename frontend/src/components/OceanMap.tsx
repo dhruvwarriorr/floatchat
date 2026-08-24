@@ -173,6 +173,24 @@ export function OceanMap({ context }: { context: MapContext }) {
               pathOptions={{ color: "#2DD4C8", weight: 1, fillColor: "#2DD4C8", fillOpacity: 0.08 }}
             />
           )}
+          {context.floatPositions?.map((position) => (
+            <CircleMarker
+              key={position.floatId}
+              center={[position.latitude, position.longitude]}
+              radius={3}
+              pathOptions={{
+                color: "#9FB8CA",
+                weight: 1,
+                fillColor: "#9FB8CA",
+                fillOpacity: 0.45,
+              }}
+            >
+              <Tooltip>
+                ARGO float {position.floatId}<br />
+                {position.profileCount} contributing {position.profileCount === 1 ? "profile" : "profiles"}
+              </Tooltip>
+            </CircleMarker>
+          ))}
           <CircleMarker
             center={center}
             radius={isRegion ? 6 : 8}
@@ -194,7 +212,8 @@ export function OceanMap({ context }: { context: MapContext }) {
           <strong>{context.label}</strong>
           <span>{isRegion ? "Regional selection" : `${formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)} • ${radiusLabel}`}</span>
         </div>
-        <p>CartoDB / OpenStreetMap • selection geometry • not for navigation</p>
+        <p>The teal anchor marks the requested selection, not an observation. Muted dots are contributing ARGO float positions.</p>
+        <p>CartoDB / OpenStreetMap • not for navigation</p>
       </div>
       <p className="map-text-equivalent">{textEquivalent}</p>
     </section>

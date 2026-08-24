@@ -1,11 +1,18 @@
 import { CircleCheck, Gauge, Radar, TriangleAlert } from "lucide-react";
 import type { OceanResponse } from "../types/ocean";
+import { ExplanationCard, TermDefinition } from "./Transparency";
 
 const gradeCopy = {
   Insufficient: "Insufficient — not enough evidence to assess",
   Indicative: "Indicative — provisional result",
   Supported: "Supported — all implemented conditions met",
 } as const;
+
+function checkValue(key: string, value: number | string | null) {
+  if (value === null) return "Not available";
+  if (key === "qc_pass_rate" && typeof value === "number") return `${(value * 100).toFixed(1)}%`;
+  return String(value);
+}
 
 export function DataSufficiency({ response }: { response: OceanResponse }) {
   const tier = response.confidence.toLowerCase();
@@ -42,6 +49,24 @@ export function DataSufficiency({ response }: { response: OceanResponse }) {
         <div><span><CircleCheck size={16} aria-hidden="true" /></span><dt>Evidence</dt><dd>{response.evidenceGrade}</dd></div>
       </dl>
       <p className="confidence-note"><strong>Why this grade:</strong> {response.confidenceNote || "No grade reasons were returned."}</p>
+      <ExplanationCard prompt="How was this grade determined?" className="metric-explanation">
+        <h4>What is the <TermDefinition term="evidence-grade">evidence grade</TermDefinition>?</h4>
+        <p>It indicates how much trust this result can carry based on data quantity, independent coverage, quality-control retention and baseline support.</p>
+        <h4>Threshold checks</h4>
+        <ul className="evidence-checks">
+          {response.evidencePanel.evidenceChecks.map((check) => (
+            <li key={check.key} data-status={check.passed === null ? "pending" : check.passed ? "pass" : "fail"}>
+              <span aria-hidden="true">{check.passed === null ? "◇" : check.passed ? "✓" : "✕"}</span>
+              <div>
+                <strong>{check.label}: {checkValue(check.key, check.value)}</strong>
+                <small>Threshold: {checkValue(check.key, check.threshold)}. {check.detail}</small>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <h4>What does the result mean?</h4>
+        <p><strong>{response.evidenceGrade}</strong>: {gradeCopy[response.evidenceGrade]}. The implemented thresholds are versioned with the dataset and remain separate from external scientific validation.</p>
+      </ExplanationCard>
     </section>
   );
 }

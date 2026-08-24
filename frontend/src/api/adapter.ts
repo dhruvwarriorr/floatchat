@@ -52,8 +52,7 @@ function confidenceForGrade(grade: EvidenceGrade): Confidence {
 }
 
 function coordinates(response: ChatApiResponse): string {
-  const { latitude, longitude, region_id, coordinate_precision } = response.params.location;
-  if (region_id) return "Named regional selection";
+  const { latitude, longitude, coordinate_precision } = response.params.location;
   return formatCoordinates(latitude, longitude, coordinate_precision ?? 2);
 }
 
@@ -145,6 +144,12 @@ function status(response: ChatApiResponse): StatusDetails | undefined {
     scoreValue: `${anomaly.z_score >= 0 ? "+" : ""}${anomaly.z_score.toFixed(2)}`,
     interpretation: anomaly.explanation,
     tone: positive ? "sand" : "aqua",
+    currentNumeric: anomaly.current_value,
+    baselineNumeric: anomaly.baseline_mean,
+    baselineStd: anomaly.baseline_std,
+    baselineN: anomaly.baseline_n,
+    zScore: anomaly.z_score,
+    baselinePeriod: anomaly.baseline_period,
   };
 }
 
@@ -182,6 +187,9 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
         ? response.params.parameters.map((value) => PARAMETER_LABELS[value] || value).join(" and ")
         : PARAMETER_LABELS[response.params.parameter] || response.params.parameter,
       resultType: RESULT_LABELS[response.query_type] || response.query_type,
+      searchArea: location.region_id
+        ? `Named region bounds centred at ${coordinates(response)}`
+        : `${location.radius_km.toLocaleString()} km search radius`,
     },
     insight: response.summary,
     parameterDefinition: response.params.parameter === "salinity"
@@ -205,6 +213,12 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       marker,
       radiusKm: location.radius_km,
       coordinatePrecision: location.coordinate_precision ?? 2,
+      floatPositions: response.evidence_panel.float_positions.map((position) => ({
+        floatId: position.float_id,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        profileCount: position.profile_count,
+      })),
       region: regionContext(location.region_id, location.bounds ?? null),
     },
     status: status(response),
@@ -228,6 +242,13 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       qcPassRate: response.evidence_panel.qc_pass_rate,
       qcRule: response.evidence_panel.qc_rule,
       exclusionReasons: response.evidence_panel.exclusion_reasons,
+      depthBinsUsed: response.evidence_panel.depth_bins_used,
+      aggregationCountsPerBin: response.evidence_panel.aggregation_counts_per_bin,
+      baselineGridCell: response.evidence_panel.baseline_grid_cell || undefined,
+      baselineSelectionId: response.evidence_panel.baseline_selection_id || undefined,
+      baselineMonthUsed: response.evidence_panel.baseline_month_used || undefined,
+      baselineDistinctFloatCount: response.evidence_panel.baseline_distinct_float_count ?? undefined,
+      evidenceChecks: response.evidence_panel.evidence_checks,
       sourceVersion: response.evidence_panel.source_version || undefined,
       selectionSummary: response.evidence_panel.selection_summary || undefined,
       artifactPath: response.evidence_panel.artifact_path || undefined,

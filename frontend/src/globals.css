@@ -604,9 +604,213 @@ h1 {
 
 .metadata-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 18px 0 13px;
+}
+
+.term-definition {
+  position: relative;
+  display: inline-block;
+}
+
+.term-definition > button {
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  background: transparent;
+  cursor: help;
+}
+
+.term-definition > button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+
+.term-popover {
+  position: absolute;
+  z-index: 1200;
+  left: 0;
+  top: calc(100% + 7px);
+  width: min(330px, 78vw);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--bg-deep);
+  box-shadow: 0 12px 30px rgba(2, 11, 24, 0.48);
+}
+
+.explanation-card {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-deep) 78%, transparent);
+}
+
+.explanation-card > summary {
+  padding: 9px 11px;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.explanation-card[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.explanation-card-body {
+  padding: 11px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.explanation-card-body section + section,
+.explanation-card-body h4:not(:first-child) {
+  margin-top: 12px;
+}
+
+.explanation-card-body h4,
+.explanation-card-body h5 {
+  margin: 0 0 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.explanation-card-body p {
+  margin: 0;
+}
+
+.explanation-card-body ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+}
+
+.explanation-card-body li + li {
+  margin-top: 4px;
+}
+
+.chart-explanation {
+  margin: 4px 0 9px;
+}
+
+.formula-values {
+  margin-top: 6px !important;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  border-radius: 7px;
+  background: var(--bg-panel-raised);
+}
+
+.glossary-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.metric-explanation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  align-items: start;
+}
+
+.metric-explanation-grid > .explanation-card {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  align-self: start;
+}
+
+/* Avoid a tall open explainer leaving a stretched, empty sibling card. */
+.metric-explanation-grid:has(> .explanation-card[open]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.evidence-checks {
+  padding: 0 !important;
+  list-style: none;
+}
+
+.evidence-checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: var(--bg-panel-raised);
+}
+
+.evidence-checks li > span {
+  color: var(--teal);
+  font-weight: 850;
+}
+
+.evidence-checks li[data-status="fail"] > span {
+  color: var(--amber);
+}
+
+.evidence-checks li[data-status="pending"] > span {
+  color: var(--text-muted);
+}
+
+.evidence-checks small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.error-context {
+  margin: 12px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.error-context > div {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-deep);
+}
+
+.error-context dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.error-context dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.error-query {
+  padding: 9px 11px;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel-raised);
 }
 
 .metadata-grid > div {
@@ -1805,6 +2009,7 @@ footer p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 .secondary-grid .chart-block {
@@ -1844,30 +2049,44 @@ footer p {
 /* --- v6: supplementary scientific charts ----------------------------------- */
 
 .supplementary-grid {
+  display: block;
+}
+
+.supplementary-columns {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.supplementary-columns.column-count-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.supplementary-columns.column-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.supplementary-columns.column-count-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.supplementary-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.supplementary-grid > .supp-card {
-  grid-column: span 4;
-}
-
-.supplementary-grid.regular-count-1 > .supp-card:not(.hovmoller-card) {
-  grid-column: span 12;
-}
-
-.supplementary-grid.regular-count-2 > .supp-card:not(.hovmoller-card),
-.supplementary-grid.regular-count-4 > .supp-card:not(.hovmoller-card) {
-  grid-column: span 6;
-}
-
-.supplementary-grid.regular-count-5 > .supp-card:nth-child(n + 4):not(.hovmoller-card) {
-  grid-column: span 6;
+.supplementary-column > .supp-card {
+  width: 100%;
+  height: auto;
+  align-self: flex-start;
 }
 
 .supplementary-grid > .hovmoller-card {
-  grid-column: 1 / -1;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
 }
 
 .supp-card {
@@ -2120,12 +2339,12 @@ footer p {
   }
 
   .secondary-grid,
-  .supplementary-grid {
+  .supplementary-columns {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .supplementary-grid > .supp-card {
-    grid-column: 1 / -1 !important;
+  .supplementary-column {
+    gap: 12px;
   }
 
   .map-visual,
@@ -2167,6 +2386,11 @@ footer p {
   .status-values,
   .sufficiency-metrics,
   .preparation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metric-explanation-grid,
+  .error-context {
     grid-template-columns: minmax(0, 1fr);
   }
 

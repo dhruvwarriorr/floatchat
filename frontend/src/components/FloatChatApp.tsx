@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { adaptApiResponse } from "../api/adapter";
-import { isErrorResponse, sendChatQuery } from "../api/chatApi";
+import { isErrorResponse, sendChatQuery, type ChatApiError } from "../api/chatApi";
 import type { OceanResponse } from "../types/ocean";
 import { ErrorState } from "./ErrorState";
 import { Header } from "./Header";
@@ -12,11 +12,7 @@ import { ResultErrorBoundary } from "./ResultErrorBoundary";
 
 const stages = ["Ask", "Interpret", "Analyse", "Explain"];
 type ViewState = "idle" | "loading" | "success" | "error";
-interface ErrorInfo {
-  type: string;
-  message: string;
-  suggestion: string | null;
-}
+type ErrorInfo = ChatApiError["error"];
 
 export function FloatChatApp() {
   const [query, setQuery] = useState("");

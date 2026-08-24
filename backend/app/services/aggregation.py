@@ -93,8 +93,8 @@ def _profile(
 ) -> dict[str, Any]:
     light = not with_trace
     method = (
-        "Display: per-profile median within fixed pressure bins, then median across "
-        "profiles; representative value: mean of full-column per-profile medians"
+        "Per-profile median within fixed pressure bins, then mean across profiles; "
+        "representative value is the mean of full-column per-profile medians"
     )
     if df.empty:
         return {**_empty("profile", parameter, method), "bins": [], "overall_mean": None}
@@ -124,28 +124,34 @@ def _profile(
                 "depth_min": depth_min,
                 "depth_max": depth_max,
                 "depth_mid": (depth_min + depth_max) / 2,
-                "value": float(subset["profile_value"].median()),
+                "value": float(subset["profile_value"].mean()),
                 "profile_count": int(subset["profile_id"].nunique()),
                 "float_count": int(subset["platform_number"].astype(str).nunique()),
                 "unit": _unit(parameter),
-                "trace": _trace(
-                    usable.loc[usable["depth_bin"].astype(str) == label], light=light
-                ),
+                "trace": _trace(usable.loc[usable["depth_bin"].astype(str) == label], light=light),
             }
         )
     # The production full-column baseline is built from one full-depth median per
     # profile. Use the identical current-period statistic for any later z-score;
     # the fixed 0–500 dbar bins remain a separate display aggregation.
     overall = float(df.groupby("profile_id")[value_col].median().mean())
+    profile_count = int(per_profile["profile_id"].nunique())
+    detailed_method = (
+        f"Per-profile median within {len(rows)} represented fixed pressure bins, then mean "
+        f"across {profile_count} QC-passed profiles; representative value is the mean of "
+        "full-column per-profile medians"
+    )
     return {
         "type": "profile",
         "parameter": parameter.value,
         "bins": rows,
         "overall_mean": overall,
         "current_value": overall,
-        "profile_count": int(per_profile["profile_id"].nunique()),
+        "profile_count": profile_count,
         "unit": _unit(parameter),
-        "aggregation_method": method,
+        "aggregation_method": detailed_method,
+        "depth_bins_used": [row["depth_bin"] for row in rows],
+        "aggregation_counts_per_bin": {row["depth_bin"]: row["profile_count"] for row in rows},
         "trace": _trace(df, light=light),
     }
 
@@ -217,12 +223,16 @@ def _time_series(
             }
         )
     current_value = float(monthly["value"].mean())
+    profile_count = int(profile_values["profile_id"].nunique())
+    method = (
+        f"{method} across {profile_count} QC-passed profiles in {len(series)} represented months"
+    )
     result: dict[str, Any] = {
         "type": "time_series",
         "parameter": parameter.value,
         "series": series,
         "current_value": current_value,
-        "profile_count": int(profile_values["profile_id"].nunique()),
+        "profile_count": profile_count,
         "unit": _unit(parameter),
         "aggregation_method": method,
         "trace": _trace(df, light=light),
@@ -293,6 +303,11 @@ def _regional(
             }
         )
     annual_mean = float(monthly["value"].mean())
+    profile_count = int(profile_values["profile_id"].nunique())
+    method = (
+        f"0–100 dbar median per profile across {profile_count} QC-passed profiles, "
+        f"monthly means for {len(rows)} represented months, then mean of those months"
+    )
     return {
         "type": "regional_average",
         "parameter": parameter.value,
@@ -300,6 +315,7 @@ def _regional(
         "annual_mean": annual_mean,
         "current_value": annual_mean,
         "represented_months": len(rows),
+        "profile_count": profile_count,
         "depth_range": "0–100 dbar",
         "unit": _unit(parameter),
         "aggregation_method": method,
@@ -345,8 +361,7 @@ def compute_current_mean(agg_data: dict[str, Any], query_type: QueryType) -> flo
 # read-only visualisations derived from the same QC-passed observations.
 # ---------------------------------------------------------------------------
 
-MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 TS_DIAGRAM_LIMIT = 500
 
 
@@ -386,13 +401,7 @@ def _seawater_density(temperature: pd.Series, salinity: pd.Series) -> pd.Series:
         - 1.120083e-6 * t**4
         + 6.536332e-9 * t**5
     )
-    coefficient = (
-        0.824493
-        - 4.0899e-3 * t
-        + 7.6438e-5 * t**2
-        - 8.2467e-7 * t**3
-        + 5.3875e-9 * t**4
-    )
+    coefficient = 0.824493 - 4.0899e-3 * t + 7.6438e-5 * t**2 - 8.2467e-7 * t**3 + 5.3875e-9 * t**4
     return rho_w + coefficient * s
 
 
@@ -417,11 +426,17 @@ def compute_ts_diagram(df: pd.DataFrame) -> dict[str, Any] | None:
         }
         for row in usable.itertuples(index=False)
     ]
+    profile_word = "profile" if profile_count == 1 else "profiles"
+    float_word = "float" if float_count == 1 else "floats"
     return {
         "type": "ts_diagram",
         "points": points,
         "profile_count": profile_count,
         "float_count": float_count,
+        "aggregation_method": (
+            f"Plotted {len(points)} paired observations that passed temperature and salinity "
+            f"QC, sampled from {profile_count} {profile_word} and {float_count} {float_word}"
+        ),
     }
 
 
@@ -454,7 +469,19 @@ def compute_density_profile(df: pd.DataFrame) -> dict[str, Any] | None:
                 "unit": "kg/m³",
             }
         )
-    return {"type": "density_profile", "bins": bins} if bins else None
+    return (
+        {
+            "type": "density_profile",
+            "bins": bins,
+            "aggregation_method": (
+                "Simplified surface-density estimate from paired QC-passed "
+                "temperature and salinity, reported as the median in "
+                f"{len(bins)} pressure bins; pressure effects omitted"
+            ),
+        }
+        if bins
+        else None
+    )
 
 
 def compute_heat_content(df: pd.DataFrame, value_col: str) -> dict[str, Any] | None:
@@ -481,6 +508,10 @@ def compute_heat_content(df: pd.DataFrame, value_col: str) -> dict[str, Any] | N
         "value_mj_per_m2": float(heat_content),
         "profile_count": len(integrals),
         "depth_range": "0–300 dbar",
+        "aggregation_method": (
+            f"Integrated QC-passed adjusted temperature through 0–300 dbar for "
+            f"{len(integrals)} profiles, then averaged the profile integrals"
+        ),
     }
 
 
@@ -507,8 +538,7 @@ def compute_hovmoller(
     )
     depth_mid = {
         label: (
-            DEPTH_BINS[index]
-            + (500.0 if index == len(DEPTH_LABELS) - 1 else DEPTH_BINS[index + 1])
+            DEPTH_BINS[index] + (500.0 if index == len(DEPTH_LABELS) - 1 else DEPTH_BINS[index + 1])
         )
         / 2
         for index, label in enumerate(DEPTH_LABELS)
@@ -530,6 +560,10 @@ def compute_hovmoller(
         "grid": grid,
         "parameter": parameter.value,
         "unit": _unit(parameter),
+        "aggregation_method": (
+            f"Median of QC-passed observations in {len(grid)} represented month-by-depth cells "
+            f"using fixed pressure bins"
+        ),
     }
 
 
@@ -541,9 +575,9 @@ def compute_seasonal_cycle(
     per_profile = _per_profile_value(df, value_col)
     if per_profile.empty:
         return None
-    per_profile["calendar_month"] = pd.to_datetime(
-        per_profile["time"], utc=True
-    ).dt.tz_convert(None).dt.month
+    per_profile["calendar_month"] = (
+        pd.to_datetime(per_profile["time"], utc=True).dt.tz_convert(None).dt.month
+    )
     months: list[dict[str, Any]] = []
     for month in range(1, 13):
         subset = per_profile.loc[per_profile["calendar_month"] == month]
@@ -566,6 +600,10 @@ def compute_seasonal_cycle(
         "months": months,
         "parameter": parameter.value,
         "unit": _unit(parameter),
+        "aggregation_method": (
+            f"Full-column median per profile, then mean and sample standard deviation for "
+            f"{len(months)} represented calendar months"
+        ),
     }
 
 
@@ -581,9 +619,7 @@ def compute_year_over_year(
     per_profile["year"] = stamps.dt.year
     per_profile["calendar_month"] = stamps.dt.month
     years: dict[str, list[dict[str, Any]]] = {}
-    grouped = (
-        per_profile.groupby(["year", "calendar_month"], as_index=False)[value_col].mean()
-    )
+    grouped = per_profile.groupby(["year", "calendar_month"], as_index=False)[value_col].mean()
     if grouped["year"].nunique() < 2:
         return None
     for row in grouped.itertuples(index=False):
@@ -602,6 +638,10 @@ def compute_year_over_year(
         "years": years,
         "parameter": parameter.value,
         "unit": _unit(parameter),
+        "aggregation_method": (
+            f"Full-column median per profile, then monthly means separated across "
+            f"{len(years)} represented years"
+        ),
     }
 
 
@@ -659,6 +699,10 @@ def compute_anomaly_trend(
         "series": series,
         "parameter": parameter.value,
         "unit": _unit(parameter),
+        "aggregation_method": (
+            f"Monthly profile means scored against matching production-baseline months; "
+            f"{len(series)} monthly Z-scores emitted"
+        ),
     }
 
 

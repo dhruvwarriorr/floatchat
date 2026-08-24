@@ -46,6 +46,7 @@ test("renders Recharts with an interactive Leaflet map and parameter controls", 
   assert.match(map, /basemaps\.cartocdn\.com/);
   assert.match(map, /CircleMarker/);
   assert.match(map, /Rectangle/);
+  assert.match(map, /floatPositions/);
   assert.match(packageJson, /react-leaflet/);
   assert.doesNotMatch(packageJson, /plotly|langchain|drizzle|cloudflare/i);
 });
@@ -103,6 +104,9 @@ test("shows real provenance in an expandable computation-transparency panel", as
   assert.doesNotMatch(panel, /Applied \{panel\.qcRule\}/);
   // Section 2 renamed to a collapsed "Data Source" block (v6 reorganization).
   assert.match(panel, /<summary>Data Source<\/summary>/);
+  assert.match(panel, /How was the production baseline matched\?/);
+  assert.match(panel, /aggregationCountsPerBin/);
+  assert.match(panel, /Open the scientific term glossary/);
   assert.doesNotMatch(panel, /explainable AI/i);
   assert.match(sufficiency, /Insufficient — not enough evidence to assess/);
   assert.match(sufficiency, /Supported — all implemented conditions met/);
@@ -126,9 +130,11 @@ test("renders secondary and supplementary scientific charts (v6)", async () => {
   assert.match(supplementary, /<svg/);
   assert.match(supplementary, /heatmapLayout/);
   assert.match(supplementary, /regular-count-/);
+  assert.match(supplementary, /supplementary-column/);
   assert.match(supplementary, /tickFormatter=\{\(value: number\) => value\.toFixed\(1\)\}/);
   assert.match(supplementary, /ReferenceArea/);
-  assert.match(styles, /grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(supplementary, /ChartExplanation/);
+  assert.match(styles, /\.supplementary-columns\.column-count-3/);
   assert.match(styles, /\.supplementary-grid > \.hovmoller-card/);
   assert.match(styles, /\.result-grid > \.chart-block \.chart-canvas/);
   assert.ok(result.indexOf("<StatusCard response={response} />") > result.indexOf("</aside>"));
@@ -168,4 +174,41 @@ test("preserves the reduced-motion background and typed error guidance", async (
   assert.match(errorState, /no_data/);
   assert.match(errorState, /general_error/);
   assert.match(errorState, /errorInfo\.suggestion/);
+  assert.match(errorState, /!errorInfo\?\.suggested_query/);
+  assert.match(errorState, /What I understood/);
+  assert.match(errorState, /Nearest available/);
+});
+
+test("makes every metric, chart, and scientific term self-explaining (v7b)", async () => {
+  const [transparency, status, sufficiency, charts, secondary, supplementary, css] = await Promise.all([
+    readFile(new URL("src/components/Transparency.tsx", root), "utf8"),
+    readFile(new URL("src/components/StatusCard.tsx", root), "utf8"),
+    readFile(new URL("src/components/DataSufficiency.tsx", root), "utf8"),
+    readFile(new URL("src/components/Charts.tsx", root), "utf8"),
+    readFile(new URL("src/components/SecondaryCharts.tsx", root), "utf8"),
+    readFile(new URL("src/components/SupplementaryCharts.tsx", root), "utf8"),
+    readFile(new URL("src/globals.css", root), "utf8"),
+  ]);
+
+  assert.match(transparency, /export function TermDefinition/);
+  assert.match(transparency, /export function ExplanationCard/);
+  assert.match(transparency, /How was it calculated\?/);
+  assert.match(transparency, /How to read it/);
+  assert.match(transparency, /production-baseline/);
+  assert.match(status, /Z-score = \(current value − baseline mean\)/);
+  assert.match(status, /currentNumeric/);
+  assert.match(status, /baselineStd/);
+  assert.match(sufficiency, /evidenceChecks\.map/);
+  assert.match(charts, /kind="profile"/);
+  assert.match(charts, /kind="time_series"/);
+  assert.match(charts, /kind="regional_average"/);
+  assert.match(secondary, /<ChartExplanation/);
+  assert.match(supplementary, /kind="ts_diagram"/);
+  assert.match(supplementary, /kind="density_profile"/);
+  assert.match(supplementary, /kind="hovmoller"/);
+  assert.match(supplementary, /kind="seasonal_cycle"/);
+  assert.match(supplementary, /kind="year_over_year"/);
+  assert.match(supplementary, /kind="anomaly_trend"/);
+  assert.match(css, /\.supplementary-columns\s*\{[^}]*align-items:\s*start/s);
+  assert.match(css, /\.metric-explanation-grid:has\(> \.explanation-card\[open\]\)/);
 });

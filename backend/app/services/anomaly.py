@@ -92,6 +92,14 @@ def get_baseline_for_month(
     standard_deviation = float(row["std"])
     if not math.isfinite(standard_deviation):
         standard_deviation = 0.0
+    selection_type = str(row.get("selection_type", "global"))
+    grid_lat = row.get("grid_lat")
+    grid_lon = row.get("grid_lon")
+    grid_bounds = None
+    if selection_type == "grid" and pd.notna(grid_lat) and pd.notna(grid_lon):
+        south = float(grid_lat)
+        west = float(grid_lon)
+        grid_bounds = {"south": south, "west": west, "north": south + 2.0, "east": west + 2.0}
     return {
         "mean": float(row["mean"]),
         "std": standard_deviation,
@@ -101,6 +109,8 @@ def get_baseline_for_month(
         "year_min": int(row["year_min"]),
         "year_max": int(row["year_max"]),
         "selection_id": str(row.get("selection_id", "all-available")),
+        "selection_type": selection_type,
+        "grid_bounds": grid_bounds,
     }
 
 

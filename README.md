@@ -1,15 +1,15 @@
 # FloatChat-Lite
 
-FloatChat-Lite is a stateless React/FastAPI workspace for explainable exploration of local Indian Ocean ARGO temperature and salinity observations. Its mandatory trust order is retrieval → ARGO QC/data-mode filtering → QC-passed aggregation → production-baseline lookup → evidence grade → computation-transparency panel.
+FloatChat-Lite is a stateless React/FastAPI workspace for explainable exploration of local Indian Ocean ARGO temperature and salinity observations. Its mandatory trust order is retrieval → recurring month/season selection → ARGO QC/data-mode filtering → QC-passed aggregation → production-baseline lookup → evidence grade → computation-transparency panel.
 
 ## Implemented
 
-- React 19, TypeScript, Vite, Recharts, an interactive Leaflet/CARTO map, Temperature/Salinity/All chart toggles, typed API errors, suggested queries, QC warnings, evidence-grade presentation, parser disclosure, and expandable result provenance.
-- FastAPI/Pydantic `POST /chat`, a schema-constrained Gemini-first parser, deterministic parsing for 50+ Indian Ocean aliases and coordinates, failure-safe fallback, CORS, liveness, and data-aware readiness.
+- React 19, TypeScript, Vite, Recharts, an interactive Leaflet/CARTO map with contributing float positions, Temperature/Salinity/All chart toggles, diagnostic typed errors, suggested queries, QC warnings, evidence-grade checks, parser disclosure, clickable scientific explainers, and expandable result provenance.
+- FastAPI/Pydantic `POST /chat`, a schema-constrained optional provider planner, deterministic parsing for 114 Indian Ocean aliases plus named regions and coordinates, compound month/season filters, failure-safe fallback, CORS, liveness, and data-aware readiness.
 - Chunked CSV preprocessing into a 165 MB Parquet artifact with source hashes, retained QC/data-mode fields, stable profile IDs, deduplication, and a versioned manifest.
 - Separate production and validation baseline artifacts with runtime protection against validation-baseline use.
 - Parquet retrieval, vectorized haversine/region filters, mandatory adjusted A/D QC filtering, independent multi-parameter profile/time-series/regional pipelines, Z-score policy, multi-signal grading, and point-to-source-row traceability.
-- 24-prompt parser reliability fixture, three-method evaluation command, and sanitized cache generation from actual API responses.
+- 59-query parser reliability fixture, three-method evaluation command, and sanitized cache generation from actual API responses.
 
 ## Current scientific acceptance
 

@@ -11,7 +11,8 @@ import pandas as pd
 import pyarrow.dataset as ds
 
 from app.config import EvidenceGradeThresholds
-from app.models import Parameter, QueryParams
+from app.models import Parameter, QueryParams, Season
+from app.services.parser_policy import SEASON_MONTHS
 
 
 class DataUnavailable(RuntimeError):
@@ -105,6 +106,31 @@ def haversine_km(
         + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(delta_lon / 2) ** 2
     )
     return 6371.0088 * 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+
+def apply_recurring_period_filter(
+    frame: pd.DataFrame,
+    *,
+    calendar_month: int | None = None,
+    season: Season | str | None = None,
+) -> pd.DataFrame:
+    """Apply recurring calendar filters after spatial/date retrieval and before QC."""
+
+    if frame.empty or (calendar_month is None and season is None):
+        return frame.copy()
+    if calendar_month is not None and season is not None:
+        raise ValueError("A query cannot apply both a calendar month and a season filter.")
+    months = (
+        pd.to_numeric(frame["calendar_month"], errors="coerce")
+        if "calendar_month" in frame
+        else pd.to_datetime(frame["time"], utc=True, errors="coerce").dt.month
+    )
+    if calendar_month is not None:
+        accepted = months.eq(calendar_month)
+    else:
+        season_value = season.value if isinstance(season, Season) else str(season)
+        accepted = months.isin(SEASON_MONTHS[season_value])
+    return frame.loc[accepted.fillna(False)].copy().reset_index(drop=True)
 
 
 def _safe_artifact_path(data_dir: Path, relative_path: str) -> Path:

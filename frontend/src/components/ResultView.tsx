@@ -1,4 +1,4 @@
-import { CalendarRange, ChartSpline, Lightbulb, MapPinned, Thermometer } from "lucide-react";
+import { CalendarRange, ChartSpline, CircleDashed, Lightbulb, MapPinned, Thermometer } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { OceanResponse } from "../types/ocean";
 import { DataSufficiency } from "./DataSufficiency";
@@ -12,11 +12,12 @@ const OceanMap = lazy(() => import("./OceanMap").then((module) => ({ default: mo
 const SecondaryCharts = lazy(() => import("./SecondaryCharts").then((module) => ({ default: module.SecondaryCharts })));
 const SupplementaryCharts = lazy(() => import("./SupplementaryCharts").then((module) => ({ default: module.SupplementaryCharts })));
 
-const metadataIcons = [MapPinned, CalendarRange, Thermometer, ChartSpline];
+const metadataIcons = [MapPinned, CircleDashed, CalendarRange, Thermometer, ChartSpline];
 
 export function ResultView({ response }: { response: OceanResponse }) {
   const metadata = [
     { label: response.map.region ? "Region" : "Location", value: response.metadata.location, detail: response.metadata.coordinates },
+    { label: "Search area", value: response.metadata.searchArea },
     { label: "Period", value: response.metadata.period },
     { label: "Parameter", value: response.metadata.parameter },
     { label: "Result type", value: response.metadata.resultType },

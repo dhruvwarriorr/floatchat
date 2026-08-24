@@ -1,6 +1,6 @@
 # FloatChat-Lite feature status
 
-> Synchronized to Rev. B, current source, and measured local artifacts on 22 August 2026
+> Synchronized to Rev. C, current source, and measured local artifacts on 24 August 2026
 
 ## Status summary
 
@@ -8,16 +8,16 @@
 | --- | --- | --- | --- |
 | Integrated UI | ✅ implemented | Recharts plus Leaflet/CARTO, multi-parameter toggles, and typed `/chat` adapter | Browser/projector acceptance remains. |
 | Data preprocessing/manifest | ✅ query-ready | 14.4M-row Arabian-Sea Parquet, hashes, coverage report, separate baselines | Licence review still blocks public redistribution. |
-| Deterministic parser | ✅ implemented | Gazetteer, coordinates, dates, types, and disclosed fallback | Generated report requires review. |
+| Deterministic parser | ✅ implemented | 114 aliases plus named regions, coordinates, compound month/season dates, casual language, type/anomaly intent, safety rejection, and disclosed fallback | Generated report requires review. |
 | Gemini LLM parser | 🟡 implemented/unaccepted | Schema-constrained server-only Gemini parser plus deterministic failover | Provider-enabled evidence requires a valid authorized credential. |
-| Scientific retrieval | ✅ implemented | Column-pruned Parquet spatial/date filters and `no_data` | Release data coverage remains incomplete. |
+| Scientific retrieval | ✅ implemented | Column-pruned Parquet spatial/date/recurring-period filters and diagnostic `no_data` with a wider-search probe | Release data coverage remains incomplete. |
 | QC Filter | ✅ implemented | Auditable position/mode/adjusted-QC/value rules | Manual profile review remains. |
 | Anomaly Model | ✅ implemented/gated | Production-only Z-score over QC aggregates | External scientific validation remains. |
 | Evidence Grade | ✅ implemented | Build-spec thresholds, multi-signal logic, suppression, and reasons | Thresholds remain marked as not externally validated. |
-| Evidence panel | ✅ implemented | Actual counts, QC, selection, aggregate, baseline, artifact hash, source rows, and point trace | Browser/projector acceptance remains. |
+| Evidence panel | ✅ implemented | Actual counts, QC exclusions, selection, aggregation/bin counts, baseline match, grade checks, contributing float positions, artifact hash, source rows, and point trace | Browser/projector acceptance remains. |
 | API errors/health | ✅ implemented | Success, typed errors, warnings, schema-aware readiness | Arabian-Sea artifact readiness returns 200. |
 | Frontend/API integration | ✅ implemented | Typed adapter preserves accepted layout and components | Release fixture/browser acceptance remains. |
-| Quantitative evaluation | 🟡 tools/fixture | 24 parser prompts and comparison command | Reviewed anomaly labels/references and evidence approval remain. |
+| Quantitative evaluation | 🟡 tools/fixture | 59 parser queries, five API scenarios, and comparison command | Reviewed anomaly labels/references and evidence approval remain. |
 | Deployment/demo | 🟡 | Container recipe and sanitized generated cache | Container/projector/recovery/rehearsal evidence remains. |
 
 ## QC Filter: data-quality path
@@ -62,9 +62,9 @@ acceptance remains outstanding because no local browser runtime was available.
 
 **Anomaly comparison:** fixed labels/subset; compare regional-average, unfiltered Z-score, and full QC/evidence pipeline; report confusion counts, precision, recall, F1, false-alert rate, coverage, and response time.
 
-**Reliability:** 20–30 paraphrases; model disabled, malformed output, fallback, invalid rate, average/p95 latency, no/sparse data, malformed date, simulated provider failure.
+**Reliability:** 59 frozen supported/error queries; provider disabled, malformed output, fallback, invalid rate, average/p95 latency, no/sparse data, malformed date, and simulated provider failure.
 
-**Status:** the 24-prompt parser suite and five API scenarios generate an
+**Status:** the 59-query parser suite and five API scenarios generate an
 unreviewed report covering disabled parsing, simulated provider failure,
 no-data, sparse-data, malformed-date, and latency behavior. The three-method
 command is implemented and deliberately exits until reviewed anomaly labels and

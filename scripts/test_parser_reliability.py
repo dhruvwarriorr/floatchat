@@ -40,6 +40,14 @@ def matches_expected(parsed: Any, expected: dict[str, Any]) -> bool:
         "date_to": actual["date_to"],
         "include_anomaly": actual["include_anomaly"],
         "radius_km": actual["location"]["radius_km"],
+        "latitude": actual["location"]["latitude"],
+        "longitude": actual["location"]["longitude"],
+        "region_id": actual["location"]["region_id"],
+        "month": actual["month"],
+        "calendar_month": actual["calendar_month"],
+        "season": actual["season"],
+        "parameters": actual["parameters"],
+        "parser_used": actual["parser_used"],
     }
     return all(checks.get(key) == value for key, value in expected.items())
 
@@ -222,7 +230,9 @@ def run_api_scenarios(repetitions: int) -> dict[str, Any]:
                     and safe
                 )
                 correct += int(accepted)
-                outcomes.append("correct" if accepted else f"unexpected_status_{status}")
+                outcomes.append(
+                    "correct" if accepted else f"unexpected_status_{status}"
+                )
             details.append({"id": scenario["id"], "outcomes": outcomes})
 
         os.environ["FLOATCHAT_LLM_API_KEY"] = "test-key-never-sent"
@@ -294,8 +304,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     fixtures = json.loads(args.fixtures.read_text(encoding="utf-8"))
-    if not 20 <= len(fixtures) <= 30:
-        raise ValueError("The frozen reliability suite must contain 20–30 prompts")
+    if not 30 <= len(fixtures) <= 100:
+        raise ValueError("The frozen reliability suite must contain 30–100 prompts")
     provider_configured = bool(os.environ.get("FLOATCHAT_LLM_API_KEY"))
     projected_live_requests = (
         len(fixtures) * args.repetitions

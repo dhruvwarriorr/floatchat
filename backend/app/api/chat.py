@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from calendar import month_abbr
 from datetime import date
 
@@ -13,6 +14,7 @@ from app.models import (
     ChatResponse,
     DataSufficiency,
     ErrorDetail,
+    ErrorQueryContext,
     ErrorResponse,
     ErrorType,
     EvidenceGrade,
@@ -32,10 +34,16 @@ from app.services.anomaly import (
     load_production_baseline,
     score_anomaly,
 )
-from app.services.data import DataRepository, DataUnavailable, NoDataFound
+from app.services.data import (
+    DataRepository,
+    DataUnavailable,
+    NoDataFound,
+    apply_recurring_period_filter,
+)
 from app.services.evidence import compute_evidence_grade
 from app.services.explain import SHALLOW_PROXY_CAVEAT, compose_evidence_panel
 from app.services.parser import REGION_BOXES, UnsupportedQuery, parse_query
+from app.services.parser_policy import MAX_RADIUS_KM
 from app.services.qc import apply_qc_filter
 
 router = APIRouter(tags=["chat"])
@@ -46,9 +54,26 @@ def error_response(
     error_type: ErrorType,
     message: str,
     suggestion: str | None = None,
+    *,
+    understanding: str | None = None,
+    understood: ErrorQueryContext | None = None,
+    searched: str | None = None,
+    records_found: int | None = None,
+    nearest_available_km: float | None = None,
+    suggested_query: str | None = None,
 ) -> JSONResponse:
     payload = ErrorResponse(
-        error=ErrorDetail(type=error_type, message=message, suggestion=suggestion)
+        error=ErrorDetail(
+            type=error_type,
+            message=message,
+            suggestion=suggestion,
+            understanding=understanding,
+            understood=understood,
+            searched=searched,
+            records_found=records_found,
+            nearest_available_km=nearest_available_km,
+            suggested_query=suggested_query,
+        )
     )
     return JSONResponse(status_code=status_code, content=payload.model_dump(mode="json"))
 
@@ -79,7 +104,17 @@ def _retrieve(repository: DataRepository, params: QueryParams, parameter: Parame
     )
 
 
+def _apply_query_filters(records, params: QueryParams):
+    return apply_recurring_period_filter(
+        records,
+        calendar_month=params.calendar_month,
+        season=params.season,
+    )
+
+
 def _baseline_month(params: QueryParams, agg_data: dict[str, object]) -> int:
+    if params.calendar_month:
+        return params.calendar_month
     if params.month:
         return params.month
     if params.query_type is QueryType.TIME_SERIES:
@@ -92,6 +127,10 @@ def _baseline_month(params: QueryParams, agg_data: dict[str, object]) -> int:
 
 
 def _location_detail(params: QueryParams) -> str:
+    def coordinate(value: float, positive: str, negative: str, precision: int = 2) -> str:
+        hemisphere = positive if value >= 0 else negative
+        return f"{abs(value):.{precision}f}°{hemisphere}"
+
     if (
         not params.location.region_id
         and params.location.latitude is not None
@@ -99,13 +138,25 @@ def _location_detail(params: QueryParams) -> str:
     ):
         latitude = params.location.latitude
         longitude = params.location.longitude
+        precision = params.location.coordinate_precision
         location_detail = (
             f"{params.location.label} "
-            f"({abs(latitude):.1f}°{'N' if latitude >= 0 else 'S'}, "
-            f"{abs(longitude):.1f}°{'E' if longitude >= 0 else 'W'}, "
+            f"({abs(latitude):.{precision}f}°{'N' if latitude >= 0 else 'S'}, "
+            f"{abs(longitude):.{precision}f}°{'E' if longitude >= 0 else 'W'}, "
             f"{params.location.radius_km:g} km radius)"
         )
         return location_detail
+    bounds = params.location.bounds
+    if bounds:
+        return (
+            f"{params.location.label} (centre "
+            f"{coordinate(params.location.latitude, 'N', 'S')}, "
+            f"{coordinate(params.location.longitude, 'E', 'W')}; bounds "
+            f"{coordinate(bounds.south, 'N', 'S', 0)} to "
+            f"{coordinate(bounds.north, 'N', 'S', 0)}, "
+            f"{coordinate(bounds.west, 'E', 'W', 0)} to "
+            f"{coordinate(bounds.east, 'E', 'W', 0)})"
+        )
     return params.location.label
 
 
@@ -147,7 +198,14 @@ def _interpreted_title(params: QueryParams) -> str:
     date_part = ""
     if params.date_from and params.date_to:
         year_from, year_to = params.date_from[:4], params.date_to[:4]
-        if params.date_from[:7] == params.date_to[:7]:
+        if params.calendar_month:
+            month = month_abbr[params.calendar_month]
+            date_part = f", each {month} {year_from}–{year_to}"
+        elif params.season and year_from != year_to:
+            date_part = f", {params.season.value} {year_from}–{year_to}"
+        elif params.season:
+            date_part = f", {params.season.value} {year_from}"
+        elif params.date_from[:7] == params.date_to[:7]:
             month = month_abbr[int(params.date_from[5:7])]
             date_part = f", {month} {year_from}"
         elif year_from == year_to:
@@ -155,21 +213,24 @@ def _interpreted_title(params: QueryParams) -> str:
         elif int(year_to) - int(year_from) <= 20:
             date_part = f", {year_from}–{year_to}"
 
-    return (
-        f"{parameter_name}{qualifier} {preposition} "
-        f"{params.location.label}{date_part}"
-    )
+    return f"{parameter_name}{qualifier} {preposition} {params.location.label}{date_part}"
 
 
 def _answer_explanation(params: QueryParams, agg_data: dict[str, object], source: str) -> str:
     selection = (
-        f"the {params.location.label} named region"
+        f"the {_location_detail(params)} named-region bounds"
         if params.location.region_id
-        else f"a {params.location.radius_km:g} km radius around {params.location.label}"
+        else f"the exact point selection {_location_detail(params)}"
     )
+    recurring_filter = ""
+    if params.calendar_month:
+        recurring_filter = f", then kept only calendar month {params.calendar_month}"
+    elif params.season:
+        recurring_filter = f", then kept only {params.season.value} months"
     explanation = (
         f"Source: {source}. Records from {params.date_from} through {params.date_to} were "
-        f"selected using {selection}, passed through the declared ARGO QC/data-mode rule, "
+        f"selected using {selection}{recurring_filter}, passed through the declared ARGO "
+        f"QC/data-mode rule, "
         f"and aggregated as: {agg_data.get('aggregation_method', 'documented aggregation')}."
     )
     if params.parameter.value == "shallow_sst_proxy":
@@ -192,6 +253,126 @@ def _anomaly_model(anomaly_result):
     )
 
 
+def _error_context(params: QueryParams) -> ErrorQueryContext:
+    return ErrorQueryContext(
+        location_label=params.location.label,
+        latitude=params.location.latitude,
+        longitude=params.location.longitude,
+        region_id=params.location.region_id,
+        radius_km=params.location.radius_km,
+        date_from=params.date_from or "",
+        date_to=params.date_to or "",
+        calendar_month=params.calendar_month,
+        season=params.season,
+        parameters=params.parameters,
+        query_type=params.query_type,
+    )
+
+
+def _parameter_words(params: QueryParams) -> str:
+    labels = {
+        Parameter.TEMPERATURE: "temperature",
+        Parameter.SALINITY: "salinity",
+        Parameter.SHALLOW_SST_PROXY: "shallow-water temperature",
+    }
+    return " and ".join(labels[parameter] for parameter in params.parameters)
+
+
+def _searched_summary(params: QueryParams) -> str:
+    temporal = f"from {params.date_from} through {params.date_to}"
+    if params.calendar_month:
+        temporal += f", keeping only {month_abbr[params.calendar_month]} observations"
+    elif params.season:
+        temporal += f", keeping only {params.season.value} months"
+    if params.location.region_id:
+        return f"The {params.location.label} regional bounds, {temporal}."
+    return f"{_location_detail(params)}, {temporal}."
+
+
+def _suggested_query(params: QueryParams, radius_km: float) -> str:
+    query = f"{_parameter_words(params)} near {params.location.label} within {radius_km:g} km"
+    if params.calendar_month:
+        query += f" every {month_abbr[params.calendar_month]}"
+    elif params.season:
+        query += f" during {params.season.value}"
+    if params.date_from and params.date_to:
+        query += f" from {params.date_from[:4]} to {params.date_to[:4]}"
+    return query
+
+
+def _no_data_response(
+    repository: DataRepository,
+    params: QueryParams,
+    parameter: Parameter,
+) -> JSONResponse:
+    context = _error_context(params)
+    searched = _searched_summary(params)
+    if params.location.region_id:
+        return error_response(
+            404,
+            ErrorType.NO_DATA,
+            f"No ARGO observations matched the understood {params.location.label} selection.",
+            "Try the Arabian Sea, another supported period, or a point inside the "
+            "installed coverage.",
+            understanding=f"The query resolved to {_location_detail(params)}.",
+            understood=context,
+            searched=searched,
+            records_found=0,
+            suggested_query="temperature across the Arabian Sea",
+        )
+
+    current_radius = params.location.radius_km
+    probe_radius = min(
+        MAX_RADIUS_KM,
+        max(500.0, current_radius * 1.5, current_radius + 250.0),
+    )
+    nearest_distance: float | None = None
+    if probe_radius > current_radius:
+        probe_location = params.location.model_copy(update={"radius_km": probe_radius})
+        probe_params = params.model_copy(update={"location": probe_location})
+        probe_records = _apply_query_filters(
+            _retrieve(repository, probe_params, parameter),
+            params,
+        )
+        if not probe_records.empty and "distance_km" in probe_records:
+            nearest_distance = float(probe_records["distance_km"].min())
+
+    if nearest_distance is not None:
+        suggested_radius = min(
+            MAX_RADIUS_KM,
+            math.ceil((nearest_distance + 25.0) / 50.0) * 50.0,
+        )
+        suggested = _suggested_query(params, suggested_radius)
+        return error_response(
+            404,
+            ErrorType.NO_DATA,
+            f"No observations were found within {current_radius:g} km of "
+            f"{params.location.label}. The nearest matching ARGO data is approximately "
+            f"{nearest_distance:.0f} km away.",
+            f'Try "{suggested}".',
+            understanding=f"The query resolved to {_location_detail(params)}.",
+            understood=context,
+            searched=searched,
+            records_found=0,
+            nearest_available_km=round(nearest_distance, 1),
+            suggested_query=suggested,
+        )
+
+    fallback = "temperature across the Arabian Sea"
+    return error_response(
+        404,
+        ErrorType.NO_DATA,
+        f"No ARGO observations were found near {params.location.label} in the requested "
+        f"period, including a diagnostic probe out to {probe_radius:g} km.",
+        f'Try another period or a covered selection such as "{fallback}".',
+        understanding=f"The query resolved to {_location_detail(params)}.",
+        understood=context,
+        searched=searched,
+        records_found=0,
+        suggested_query=fallback,
+    )
+
+
 def _build_parameter_result(
     repository: DataRepository,
     raw_records,
@@ -199,9 +380,7 @@ def _build_parameter_result(
     parameter: Parameter,
     source: str,
 ) -> ParameterResult:
-    parameter_params = params.model_copy(
-        update={"parameter": parameter, "parameters": [parameter]}
-    )
+    parameter_params = params.model_copy(update={"parameter": parameter, "parameters": [parameter]})
     qc_result = apply_qc_filter(raw_records, parameter)
     agg_data = aggregate(qc_result, params.query_type, parameter)
     baseline_df = load_production_baseline(repository.data_dir / "baselines")
@@ -321,15 +500,19 @@ def chat(request: ChatRequest) -> JSONResponse:
             422,
             ErrorType.PARSE_ERROR,
             str(exc),
-            "Include an Indian Ocean location or coordinates, temperature/salinity, and a date.",
+            "Ask about temperature or salinity at an Indian Ocean location; dates are optional.",
+            understanding="No safe structured Indian Ocean selection could be formed.",
         )
 
     repository = DataRepository(get_settings().data_dir)
     try:
         retrieval_parameter = Parameter.ALL if len(params.parameters) > 1 else params.parameters[0]
-        raw_records = _retrieve(repository, params, retrieval_parameter)
+        raw_records = _apply_query_filters(
+            _retrieve(repository, params, retrieval_parameter),
+            params,
+        )
         if raw_records.empty:
-            raise NoDataFound
+            return _no_data_response(repository, params, retrieval_parameter)
         version = repository.get_manifest_version()
         source = f"{repository.get_source_name()} • dataset {version}"
         results = {
@@ -366,19 +549,16 @@ def chat(request: ChatRequest) -> JSONResponse:
         )
         return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
     except NoDataFound:
-        return error_response(
-            404,
-            ErrorType.NO_DATA,
-            "No observations in the installed Arabian Sea ARGO subset match that "
-            "location and date range.",
-            "Try a wider radius, another period, or a location within the Arabian Sea coverage.",
-        )
+        return _no_data_response(repository, params, retrieval_parameter)
     except UnsupportedQuery as exc:
         return error_response(
             422,
             ErrorType.PARSE_ERROR,
             str(exc),
             "Rephrase the location or date.",
+            understanding=f"The query resolved to {_location_detail(params)}.",
+            understood=_error_context(params),
+            searched=_searched_summary(params),
         )
     except DataUnavailable:
         return error_response(
@@ -386,6 +566,9 @@ def chat(request: ChatRequest) -> JSONResponse:
             ErrorType.GENERAL_ERROR,
             "The scientific dataset is not ready for queries yet.",
             "Run the documented preprocessing and baseline commands, then try again.",
+            understanding=f"The query resolved to {_location_detail(params)}.",
+            understood=_error_context(params),
+            searched=_searched_summary(params),
         )
     except Exception:
         return error_response(
@@ -393,4 +576,7 @@ def chat(request: ChatRequest) -> JSONResponse:
             ErrorType.GENERAL_ERROR,
             "The request could not be completed safely.",
             "Please retry or rephrase the question.",
+            understanding=f"The query resolved to {_location_detail(params)}.",
+            understood=_error_context(params),
+            searched=_searched_summary(params),
         )

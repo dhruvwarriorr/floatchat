@@ -10,6 +10,7 @@ import {
 import type { ApiAggregateData } from "../api/chatApi";
 import type { OceanResponse } from "../types/ocean";
 import { chartAxis, chartGrid, chartLabelStyle, chartTooltip, colours } from "./Charts";
+import { ChartExplanation } from "./Transparency";
 
 const TITLES: Record<string, string> = {
   profile: "Depth profile",
@@ -41,6 +42,11 @@ function SecondaryChart({
         {view.current_value?.toFixed(2)} {view.unit} representative value • same QC-passed selection,
         regrouped as {TITLES[view.type].toLowerCase()}
       </p>
+      <ChartExplanation
+        kind={view.type}
+        method={view.aggregation_method}
+        inputs={`${view.profile_count ?? 0} QC-passed profiles from the same selection.`}
+      />
       <div className="secondary-chart-canvas">
         <ResponsiveContainer width="100%" height="100%">
           {vertical ? (

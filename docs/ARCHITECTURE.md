@@ -1,11 +1,16 @@
 # FloatChat-Lite — Architecture
 
-> **Status:** Draft | **Last updated:** 21 August 2026 (rev. B — QC-filter path + evidence grading added post-review)
+> **Status:** Implemented engineering architecture | **Last updated:** 24 August 2026 (rev. C — compound temporal parsing and response transparency)
 
 ## 1. System Overview
 FloatChat-Lite is a stateless, request/response conversational system: a React frontend sends a natural-language query to a FastAPI backend, which parses it (LLM-first, rule-based fallback), retrieves matching ARGO ocean data from preprocessed Parquet/CSV files, **filters it against ARGO quality-control flags**, scores the QC-passed data against a precomputed climatology baseline for anomalies, grades the result's trustworthiness, and wraps it in a computation-transparency panel before returning a single structured JSON response. There is no database, no user accounts, and no multi-turn memory — every query is self-contained, which keeps the 48-hour build simple and removes state-management failure modes. The system fits into the broader SIH26 "explainable ocean intelligence" problem space (PS1 conversational access + PS2 anomaly detection + PS3 explainability) as a single unified pipeline rather than three separate tools.
 
 The system is deliberately built around **two separate paths after data retrieval**: a **data-quality path** (QC filtering — is this observation trustworthy at all?) and an **ocean-event path** (anomaly scoring — given trustworthy observations, is the value unusual?). Collapsing these into one step was the core issue flagged in review: a strange temperature reading can be a sensor or profile error rather than a real oceanographic event, and ARGO's own QC flags and delayed-mode data exist specifically to make that distinction. Keeping the paths separate means a bad sensor reading can never masquerade as a detected anomaly.
+
+Rev. C adds a distinct recurring-period filter between retrieval and QC, hybrid
+parser authority rules, actual float positions, structured no-data diagnostics, and
+frontend explanations driven by returned calculation metadata. These additions do
+not change the source boundary: only installed ARGO observations can produce values.
 
 ## 2. Architecture Diagram
 
@@ -17,7 +22,8 @@ graph TD
     Parser --> Data[Data Layer<br/>get_profile / get_regional_average / get_time_series]
     Fallback --> Data
     Data --> Store[(Parquet / CSV<br/>preprocessed ARGO data)]
-    Data --> QC[QC Filter<br/>data-quality path]
+    Data --> Period[Recurring month / season filter]
+    Period --> QC[QC + data-mode filter<br/>data-quality path]
     QC -->|too few valid obs| DQWarn[Data-quality warning]
     QC -->|QC-passed observations| Anomaly[Anomaly Model<br/>Z-score vs. climatology<br/>ocean-event path]
     Anomaly --> Baselines[(Precomputed Baselines<br/>mean/std by region + month)]
@@ -36,7 +42,7 @@ graph TD
 |---|---|---|
 | Frontend | React + TypeScript, Recharts (charts), Leaflet (maps) | Typed interactive charts and maps with the established application component system |
 | Backend / API | Python 3.10+, FastAPI | Async-friendly, minimal boilerplate, fast to stand up endpoints in a hackathon timeframe |
-| Query Parsing | Direct LLM API calls (GPT-4o-mini / Claude 3.5 / Ollama Llama 3.1) — no LangChain | Direct calls mean fewer abstraction layers and failure modes than a framework; easier to debug live |
+| Query Parsing | Direct structured-output provider call (Gemini by default; documented compatible providers) plus deterministic policy/fallback — no LangChain | The provider may interpret dates and intent, while deterministic geography, safety, schema validation, and fallback keep the result bounded and reproducible |
 | Data Processing | pandas, NumPy | Standard scientific Python stack for validating INCOIS CSV exports and producing query-able tables |
 | Anomaly Model | NumPy Z-score calculation, no Isolation Forest | Z-score vs. climatology is simple to implement, explain to judges, and validate in 2 days |
 | Data Storage | CSV/Parquet files (preprocessed from reviewed INCOIS CSV exports), no MongoDB | Zero-config, fast, nothing to break on demo day; the dataset is small and read-heavy, not written to live |
@@ -46,7 +52,7 @@ graph TD
 ## 4. Component Breakdown
 
 ### 4.1 React Frontend (Chat UI)
-- **Responsibility:** Collects the user's natural-language query, sends it to `POST /chat`, and renders the response — query summary header, Recharts chart, Leaflet map pin, anomaly status, explanation footer, and data-sufficiency line. Also renders the degraded-mode disclosure line when `parser_used == "rule_based"`.
+- **Responsibility:** Collects the user's natural-language query, sends it to `POST /chat`, and renders interpreted metadata, all chart variants, a query anchor and actual contributing float positions, anomaly formula and inputs, evidence checks, QC exclusions, selected baseline, and provenance. Every scientific chart has a collapsible four-part explanation, and technical terms open a plain-language glossary. It also renders structured error diagnostics and the degraded-mode disclosure when `parser_used == "rule_based"`.
 - **Interfaces:** Calls `POST /chat` on the FastAPI backend; consumes the full Response JSON contract (Section 6).
 - **Depends on:** FastAPI Backend; Recharts and Leaflet as rendering libraries.
 
@@ -56,17 +62,17 @@ graph TD
 - **Depends on:** LLM API provider, Data Layer, Anomaly Model, Explainability Layer.
 
 ### 4.3 LLM Query Parser
-- **Responsibility:** May propose exact-schema structured parameters (`query_type`, `location`, `parameter`, `date_from`, `date_to`, `include_anomaly`) from free text. Unicode normalization and deterministic hints run first; the proposal is rejected if its schema is not exact or it contradicts supported geography, dates, radius, parameter, or intent. Accepted output is tagged `parser_used: "llm"`.
-- **Interfaces:** Called by the FastAPI Backend; calls out to the external LLM API (GPT-4o-mini / Claude 3.5 / Ollama).
+- **Responsibility:** May propose exact-schema structured parameters from free text. The provider is authoritative for supported intent and temporal interpretation when it supplies them. Deterministic policy remains authoritative for the canonical place/coordinates, radius, supported parameters, geography/safety boundary, and schema. Provider failure or an invalid plan falls back without breaking the request.
+- **Interfaces:** Called by the FastAPI Backend; calls the configured structured-output provider with one server-side key.
 - **Depends on:** External LLM API availability and latency; falls through to the Rule-Based Parser on failure or timeout.
 
 ### 4.4 Rule-Based Parser (Fallback)
-- **Responsibility:** Deterministically parses queries using the canonical place/region gazetteer shared with the LLM prompt, lat/lon and radius regexes, date/season handling, and boundary-aware intent/parameter matching. It preserves explicit coordinate precision and rejects unsupported or out-of-policy values. Always tags output `parser_used: "rule_based"`.
+- **Responsibility:** Deterministically parses queries using a 100-plus-alias canonical Indian Ocean gazetteer shared with the provider prompt, hemispheric coordinates and radii, year/month/range/relative/season combinations, casual parameter and intent phrases, and boundary-aware matching. An explicit place or coordinate takes priority over a broad ocean name. It preserves coordinate precision, supports multi-parameter questions, and rejects unsupported, injected, or out-of-policy values. Always tags output `parser_used: "rule_based"`.
 - **Interfaces:** Invoked directly when no provider is configured and as the mandatory fallback when the LLM times out, fails, or returns invalid output.
 - **Depends on:** Nothing external — pure Python, no network calls, by design (it exists to be the reliable fallback).
 
 ### 4.5 Data Layer
-- **Responsibility:** Reads preprocessed ARGO Parquet/CSV data and exposes `get_profile()`, `get_regional_average()`, and `get_time_series()` functions that return chart-ready data plus raw record counts. Does **not** decide trustworthiness — that's the QC Filter's job — it only retrieves what matches the query's region/time/parameter.
+- **Responsibility:** Reads preprocessed ARGO Parquet/CSV data, retrieves matching point-radius or named-region/time/parameter records, and applies any recurring `calendar_month` or named `season` selection before QC. It does **not** decide trustworthiness — that is the QC Filter's job.
 - **Interfaces:** Called by the FastAPI Backend with structured query parameters; reads from the Parquet/CSV data store.
 - **Depends on:** Preprocessed ARGO dataset (INCOIS CSV → Parquet/CSV pipeline, run ahead of the live demo), including the retained parameter QC fields per record (Section 5).
 
@@ -94,6 +100,11 @@ graph TD
 - **Responsibility:** Assembles a real, expandable **"Why this result?" evidence panel** containing the actual computed values and provenance — e.g., "14 QC=1 adjusted profiles from four floats; July 2024 mean: 28.9°C; July 2015–2023 baseline: 28.1 ± 0.4°C; z = +2.0" — plus `answer_explanation` (data source, aggregation method, proxy assumptions like the ≤10m SST depth cutoff). This is described in all docs/pitch material as **computation transparency and provenance reporting**, not SHAP/LIME-style explainable AI, since no model-attribution technique is used.
 - **Interfaces:** Called by the FastAPI Backend after data retrieval, QC filtering, and (optionally) anomaly scoring/grading, before the response is returned.
 - **Depends on:** Output of the Data Layer, QC Filter, Anomaly Model, and Evidence Grade.
+- **Rev. C detail:** The panel returns raw/valid/excluded profile and observation
+  counts, exclusion reasons, float count and positions, actual aggregation and
+  per-bin counts, selected baseline grid/region/month, Z-score inputs,
+  threshold-by-threshold evidence checks, artifact hash, and bounded source-record
+  traces. The frontend renders these values rather than generic placeholder copy.
 
 ### 4.10 AnomalyBadge (Frontend Component)
 - **Responsibility:** Renders the anomaly severity badge with color coding, but suppresses the colored badge and shows a neutral "not enough data to assess" state whenever `evidence_grade` is `"Insufficient"`, and shows a "provisional" qualifier when `"Indicative"`. Full-weight color only renders on `"Supported"`.
@@ -196,10 +207,11 @@ erDiagram
 
 > **Note on `evidence_grade` replacing `data_sufficiency.confidence`:** the old `confidence` field (`low`/`medium`/`high`, based on profile count alone) is retired in favor of `evidence_grade` (`Insufficient`/`Indicative`/`Supported`, based on profile count, baseline `n`, distinct float count, and QC pass rate together — see Section 4.8). `data_sufficiency` is kept for the raw counts the panel displays, but no longer carries the trust judgment itself.
 
-**Error responses (200 with error body, or 4xx — implementation detail TBD):**
-- `no_data` — no ARGO profiles found for the requested region/time window
-- `parse_error` — the query couldn't be understood by either parser
-- `general_error` — unexpected failure; never expose a raw stack trace to the client
+**Error responses:**
+- `404 no_data` — no ARGO profiles matched; includes the understood selection, searched area/time, zero count, nearest wider-search distance when available, and an alternative query
+- `422 parse_error` — neither safe parser path could accept the question
+- `503 general_error` — a required artifact is unavailable
+- `500 general_error` — sanitized unexpected failure; never exposes a raw stack trace
 
 ## 7. Infrastructure & Deployment
 - **Hosting:** Hugging Face Spaces, following the SIH25040 (2025) precedent — a single Space serving both the FastAPI backend and the built React frontend (or two Spaces if split is simpler for the team).
@@ -238,7 +250,6 @@ erDiagram
 
 ## 11. Open Technical Questions
 - [ ] Will the FastAPI backend and React frontend be deployed as one combined Hugging Face Space or two separate Spaces?
-- [ ] What HTTP status codes will `no_data` / `parse_error` / `general_error` actually return (200 with an error body vs. 4xx)?
 - [ ] Which LLM provider is finalized for the live demo, and has API rate-limit/latency behavior been tested under demo conditions?
 - [ ] How many years of history will the production baseline actually use once the real preprocessed dataset size is known (target 8–9 years)?
 - [ ] If the fallback ARGO subset is triggered, does it cover the exact regions/coordinates used in the three pinned demo queries?

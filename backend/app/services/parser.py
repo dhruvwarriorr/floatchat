@@ -21,6 +21,7 @@ from app.models import (
     QueryLocation,
     QueryParams,
     QueryType,
+    Season,
 )
 from app.services import parser_policy as policy
 from app.services.parser_policy import (  # re-exported for stable imports
@@ -92,6 +93,8 @@ class ParserHints:
     date_from: str
     date_to: str
     month: int | None
+    calendar_month: int | None
+    season: Season | None
     year_start: int
     year_end: int
     include_anomaly: bool
@@ -160,7 +163,12 @@ def extract_query_type(
         return QueryType.PROFILE
     if _any(query, policy.TIME_SERIES_PHRASES):
         return QueryType.TIME_SERIES
-    if re.search(r"\b20\d{2}\s*(?:-|to|through)\s*20\d{2}\b", query):
+    if re.search(
+        r"\b(?:20\d{2}\s*(?:-|to|through)\s*20\d{2}|between\s+20\d{2}\s+and\s+20\d{2})\b",
+        query,
+    ):
+        return QueryType.TIME_SERIES
+    if re.search(r"\b(?:last|past)\s+\d{1,2}\s+(?:years?|months?)\b", query):
         return QueryType.TIME_SERIES
     # Comparison/anomaly intent is temporal and outranks whole-region intent,
     # unless the user explicitly asked for a regional average.
@@ -210,6 +218,13 @@ def _subtract_months(anchor: date, months: int) -> date:
 
 
 def _season_window(season: str, year: int) -> tuple[str, str]:
+    if season == "winter":
+        start = date(year, 12, 1)
+        end_year = min(year + 1, policy.DATASET_MAX_YEAR)
+        end = (
+            date(end_year, 2, monthrange(end_year, 2)[1]) if end_year > year else date(year, 12, 31)
+        )
+        return start.isoformat(), end.isoformat()
     start_month, start_day, end_month, end_day = policy.SEASONS[season]
     return f"{year}-{start_month:02d}-{start_day:02d}", f"{year}-{end_month:02d}-{end_day:02d}"
 
@@ -230,85 +245,142 @@ def _detect_season(query: str) -> str | None:
         return "monsoon"
     if re.search(r"\bsummer\b", query):
         return "summer"
+    if re.search(r"\bwinter\b", query):
+        return "winter"
     return None
 
 
 def extract_date_range(
     query: str, today: date | None = None
-) -> tuple[str, str, int | None, int, int]:
+) -> tuple[str, str, int | None, int, int, int | None, Season | None]:
     reference = policy.resolve_today(today)
     # Remove radius/depth spans so numbers like "2000 km" or "200 m" cannot be
     # misread as years.
     date_query = policy.DEPTH_PATTERN.sub(" ", policy.RADIUS_PATTERN.sub(" ", query))
 
     years = [int(year) for year in re.findall(r"\b(?:19|20|21)\d{2}\b", date_query)]
-    if any(
-        year < policy.DATASET_MIN_YEAR or year > policy.DATASET_MAX_YEAR for year in years
-    ):
+    if any(year < policy.DATASET_MIN_YEAR or year > policy.DATASET_MAX_YEAR for year in years):
         raise UnsupportedQuery(
             f"The local ARGO collection supports dates from {policy.DATASET_MIN_YEAR} "
             f"through {policy.DATASET_MAX_YEAR}."
         )
 
     def _bounds(
-        date_from: str, date_to: str, month: int | None
-    ) -> tuple[str, str, int | None, int, int]:
+        date_from: str,
+        date_to: str,
+        month: int | None,
+        calendar_month: int | None = None,
+        season: str | None = None,
+    ) -> tuple[str, str, int | None, int, int, int | None, Season | None]:
         if date_from > date_to:
             raise UnsupportedQuery("The start date must not be later than the end date.")
-        return date_from, date_to, month, int(date_from[:4]), int(date_to[:4])
+        return (
+            date_from,
+            date_to,
+            month,
+            int(date_from[:4]),
+            int(date_to[:4]),
+            calendar_month,
+            Season(season) if season else None,
+        )
 
     # Explicit year range.
-    range_match = re.search(r"\b(20\d{2})\s*(?:-|to|through)\s*(20\d{2})\b", date_query)
+    range_match = re.search(
+        r"\b(20\d{2})\s*(?:-|to|through)\s*(20\d{2})\b"
+        r"|\bbetween\s+(20\d{2})\s+and\s+(20\d{2})\b",
+        date_query,
+    )
+    season = _detect_season(date_query)
+    month = _named_month(date_query)
     if range_match:
-        year_start, year_end = map(int, range_match.groups())
+        values = [value for value in range_match.groups() if value is not None]
+        year_start, year_end = map(int, values)
         if year_start > year_end:
             raise UnsupportedQuery("The start year must not be later than the end year.")
-        return _bounds(f"{year_start}-01-01", f"{year_end}-12-31", None)
+        return _bounds(
+            f"{year_start}-01-01",
+            f"{year_end}-12-31",
+            None,
+            calendar_month=month if season is None else None,
+            season=season,
+        )
 
-    season = _detect_season(date_query)
     single_year_match = re.search(r"\b(20\d{2})\b", date_query)
-    month = _named_month(date_query)
+
+    # Relative ranges preserve recurring month/season filters.
+    last_n = re.search(r"\b(?:last|past)\s+(\d{1,2})\s+(year|years|month|months)\b", date_query)
+    if last_n:
+        count = int(last_n.group(1))
+        if count < 1:
+            raise UnsupportedQuery("The relative date count must be at least one.")
+        end = reference
+        if last_n.group(2).startswith("year"):
+            start = date(end.year - count + 1, 1, 1)
+            end = date(end.year, 12, 31)
+        else:
+            start = _subtract_months(end, count - 1)
+        return _bounds(
+            start.isoformat(),
+            end.isoformat(),
+            None,
+            calendar_month=month if season is None else None,
+            season=season,
+        )
 
     if season is not None:
         year = int(single_year_match.group(1)) if single_year_match else reference.year
         date_from, date_to = _season_window(season, year)
-        return _bounds(date_from, date_to, None)
+        return _bounds(date_from, date_to, None, season=season)
 
     if single_year_match:
         year = int(single_year_match.group(1))
         if month:
             last_day = monthrange(year, month)[1]
-            return _bounds(f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day:02d}", month)
+            return _bounds(
+                f"{year}-{month:02d}-01",
+                f"{year}-{month:02d}-{last_day:02d}",
+                month,
+            )
         return _bounds(f"{year}-01-01", f"{year}-12-31", None)
-
-    # Relative dates (no explicit year present).
-    last_n = re.search(r"\b(?:last|past)\s+(\d{1,2})\s+(year|years|month|months)\b", date_query)
-    if last_n:
-        count = int(last_n.group(1))
-        end = reference
-        if last_n.group(2).startswith("year"):
-            start = date(end.year - count + 1, 1, 1)
-        else:
-            start = _subtract_months(end, count - 1)
-        return _bounds(start.isoformat(), end.isoformat(), None)
 
     if re.search(r"\brecently\b", date_query):
         end = reference
         start = _subtract_months(end, 5)
-        return _bounds(start.isoformat(), end.isoformat(), None)
+        return _bounds(start.isoformat(), end.isoformat(), None, calendar_month=month)
 
     if re.search(r"\bthis\s+year\b", date_query):
+        if month:
+            last_day = monthrange(reference.year, month)[1]
+            return _bounds(
+                f"{reference.year}-{month:02d}-01",
+                f"{reference.year}-{month:02d}-{last_day:02d}",
+                month,
+            )
         return _bounds(f"{reference.year}-01-01", reference.isoformat(), None)
 
     if re.search(r"\blast\s+year\b", date_query):
         year = reference.year - 1
+        if month:
+            last_day = monthrange(year, month)[1]
+            return _bounds(f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day:02d}", month)
         return _bounds(f"{year}-01-01", f"{year}-12-31", None)
 
     if re.search(r"\b(today|current|latest|now)\b", date_query):
-        return _bounds(reference.isoformat(), reference.isoformat(), reference.month)
+        latest = min(reference, date.fromisoformat(policy.LATEST_AVAILABLE_DATE))
+        return _bounds(latest.isoformat(), latest.isoformat(), latest.month)
+
+    # A named month without a year means that calendar month across the full
+    # supported window, rather than silently retrieving every month.
+    if month:
+        return _bounds(
+            policy.DATASET_MIN_DATE,
+            policy.DATASET_MAX_DATE,
+            None,
+            calendar_month=month,
+        )
 
     # No date at all -> full supported window.
-    return _bounds(policy.DATASET_MIN_DATE, policy.DATASET_MAX_DATE, month)
+    return _bounds(policy.DATASET_MIN_DATE, policy.DATASET_MAX_DATE, None)
 
 
 # --- Location ----------------------------------------------------------------
@@ -320,9 +392,7 @@ def _validate_envelope(latitude: float, longitude: float) -> None:
     if not (policy.LAT_MIN <= latitude <= policy.LAT_MAX) or not (
         policy.LON_MIN <= longitude <= policy.LON_MAX
     ):
-        raise UnsupportedQuery(
-            "The coordinates fall outside the supported Indian Ocean envelope."
-        )
+        raise UnsupportedQuery("The coordinates fall outside the supported Indian Ocean envelope.")
 
 
 def _region_location(region_id: str, label: str, radius_km: float) -> QueryLocation:
@@ -366,13 +436,10 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
             coordinate_precision=coordinate_precision,
         )
 
-    for name in sorted(REGION_NAMES, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(name)}\b", query):
-            region_id, label = REGION_NAMES[name]
-            return _region_location(region_id, label, radius_km)
-
-    for name in sorted(GAZETTEER, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(name)}\b", query):
+    def _gazetteer_location() -> QueryLocation | None:
+        for name in sorted(GAZETTEER, key=len, reverse=True):
+            if not re.search(rf"\b{re.escape(name)}\b", query):
+                continue
             latitude, longitude, label = GAZETTEER[name]
             return QueryLocation(
                 label=label,
@@ -381,8 +448,23 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
                 radius_km=radius_km,
                 coordinate_precision=2,
             )
+        return None
 
-    return None
+    # Point intent plus a known coast/city outranks a co-occurring named region.
+    # Example: "near Mumbai in the Arabian Sea" must stay anchored to Mumbai.
+    point_intent = re.search(
+        r"\b(?:near|around|off|at|close\s+to|coast\s+of|within\s+\d+(?:\.\d+)?\s*km\s+of)\b",
+        query,
+    )
+    if point_intent and (gazetteer_location := _gazetteer_location()) is not None:
+        return gazetteer_location
+
+    for name in sorted(REGION_NAMES, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(name)}\b", query):
+            region_id, label = REGION_NAMES[name]
+            return _region_location(region_id, label, radius_km)
+
+    return _gazetteer_location()
 
 
 # --- Deterministic parser ----------------------------------------------------
@@ -392,8 +474,19 @@ def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
     query = _normalize(raw_query)
     if not query:
         raise UnsupportedQuery("The question was empty.")
-    if _any(query, policy.OUT_OF_SCOPE_TERMS):
-        raise UnsupportedQuery("The question is outside temperature and salinity exploration.")
+    unsupported_topic = next(
+        (
+            phrase.replace(r"\w*", "")
+            for phrase in (*policy.OUT_OF_SCOPE_TERMS, *policy.NON_INDIAN_OCEAN_TERMS)
+            if _phrase_pattern(phrase).search(query)
+        ),
+        None,
+    )
+    if unsupported_topic:
+        raise UnsupportedQuery(
+            "FloatChat-Lite covers temperature and salinity from ARGO floats in the "
+            f"Indian Ocean. I can't help with {unsupported_topic}."
+        )
 
     parameters = extract_parameters(query)
     radius_km = extract_radius(query)
@@ -402,7 +495,15 @@ def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
         raise UnsupportedQuery("Include a named Indian Ocean location or latitude/longitude pair.")
 
     query_type = extract_query_type(query, parameters, location)
-    date_from, date_to, month, year_start, year_end = extract_date_range(query, today=today)
+    (
+        date_from,
+        date_to,
+        month,
+        year_start,
+        year_end,
+        calendar_month,
+        season,
+    ) = extract_date_range(query, today=today)
     anomaly_requested = extract_anomaly_intent(query)
     return ParserHints(
         normalized_query=query,
@@ -412,6 +513,8 @@ def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
         date_from=date_from,
         date_to=date_to,
         month=month,
+        calendar_month=calendar_month,
+        season=season,
         year_start=year_start,
         year_end=year_end,
         include_anomaly=anomaly_requested,
@@ -429,6 +532,8 @@ def parse_rule_based(raw_query: str) -> QueryParams:
         year_start=hints.year_start,
         year_end=hints.year_end,
         month=hints.month,
+        calendar_month=hints.calendar_month,
+        season=hints.season,
         anomaly_requested=hints.include_anomaly,
         date_from=hints.date_from,
         date_to=hints.date_to,
@@ -498,7 +603,8 @@ def _validate_provider_schema(payload: Any) -> dict[str, Any]:
         raise SchemaViolation("The provider output is not a JSON object.")
     required = set(QUERY_SCHEMA["required"])
     supplied = set(payload)
-    if supplied != required:
+    allowed = set(QUERY_SCHEMA["properties"])
+    if not required.issubset(supplied) or not supplied.issubset(allowed):
         raise SchemaViolation("The provider output did not match the required fields exactly.")
 
     if not isinstance(payload["query_type"], str):
@@ -539,6 +645,16 @@ def _validate_provider_schema(payload: Any) -> dict[str, Any]:
         raise SchemaViolation("The provider returned a non-numeric radius.")
     if not isinstance(payload["include_anomaly"], bool):
         raise SchemaViolation("The provider returned a non-boolean anomaly flag.")
+    calendar_month = payload.get("calendar_month")
+    if calendar_month is not None and (
+        isinstance(calendar_month, bool)
+        or not isinstance(calendar_month, int)
+        or not 1 <= calendar_month <= 12
+    ):
+        raise SchemaViolation("The provider returned an invalid calendar month.")
+    season = payload.get("season")
+    if season is not None and (not isinstance(season, str) or season not in policy.SEASONS):
+        raise SchemaViolation("The provider returned an invalid season.")
     return payload
 
 
@@ -556,51 +672,69 @@ def _build_params(
     except (KeyError, ValueError) as exc:
         raise SchemaViolation("The provider returned an unsupported query type.") from exc
 
-    parameters = _semantic_parameters(payload.get("parameters"))
+    provider_parameters = _semantic_parameters(payload.get("parameters"))
+    parameters = hints.parameters if hints is not None else provider_parameters
     parameter = Parameter.ALL if len(parameters) > 1 else parameters[0]
-
-    radius_value = payload.get("radius_km", policy.DEFAULT_RADIUS_KM)
-    try:
-        radius_km = float(radius_value)
-    except (TypeError, ValueError) as exc:
-        raise SchemaViolation("The provider returned a non-numeric radius.") from exc
-    if not (policy.MIN_RADIUS_KM <= radius_km <= policy.MAX_RADIUS_KM):
-        raise SemanticValidationError("The provider radius is outside the allowed range.")
 
     region_id = payload.get("region_id") or None
     has_coordinates = payload.get("lat") is not None and payload.get("lon") is not None
     if region_id and has_coordinates:
         raise SemanticValidationError("The provider returned both a region and coordinates.")
+    if not region_id and not has_coordinates:
+        raise SemanticValidationError("The provider returned no usable location.")
+    if has_coordinates:
+        _validate_envelope(float(payload["lat"]), float(payload["lon"]))
 
-    if region_id:
-        if region_id not in REGION_BOXES:
-            raise SchemaViolation("The provider returned an unsupported named region.")
-        location = _region_location(
-            region_id,
-            str(payload.get("location_label") or region_id.replace("-", " ").title()),
-            radius_km,
-        )
+    if hints is not None:
+        radius_km = hints.location.radius_km
     else:
-        if not has_coordinates:
-            raise SemanticValidationError("The provider returned no usable location.")
+        radius_value = payload.get("radius_km", policy.DEFAULT_RADIUS_KM)
         try:
-            latitude = float(payload["lat"])
-            longitude = float(payload["lon"])
+            radius_km = float(radius_value)
         except (TypeError, ValueError) as exc:
-            raise SchemaViolation("The provider returned non-numeric coordinates.") from exc
-        _validate_envelope(latitude, longitude)
-        location = QueryLocation(
-            label=str(payload.get("location_label") or "Requested coordinates"),
-            latitude=latitude,
-            longitude=longitude,
-            radius_km=radius_km,
-            coordinate_precision=2,
-        )
+            raise SchemaViolation("The provider returned a non-numeric radius.") from exc
+        if not (policy.MIN_RADIUS_KM <= radius_km <= policy.MAX_RADIUS_KM):
+            raise SemanticValidationError("The provider radius is outside the allowed range.")
+
+    if hints is not None:
+        # Gazetteer coordinates, label, point/region mode and radius are
+        # application-owned. Provider guesses are intentionally ignored.
+        location = hints.location
+    else:
+        if region_id:
+            if region_id not in REGION_BOXES:
+                raise SchemaViolation("The provider returned an unsupported named region.")
+            location = _region_location(
+                region_id,
+                str(payload.get("location_label") or region_id.replace("-", " ").title()),
+                radius_km,
+            )
+        else:
+            try:
+                latitude = float(payload["lat"])
+                longitude = float(payload["lon"])
+            except (TypeError, ValueError) as exc:
+                raise SchemaViolation("The provider returned non-numeric coordinates.") from exc
+            _validate_envelope(latitude, longitude)
+            location = QueryLocation(
+                label=str(payload.get("location_label") or "Requested coordinates"),
+                latitude=latitude,
+                longitude=longitude,
+                radius_km=radius_km,
+                coordinate_precision=2,
+            )
 
     date_from, date_to = _semantic_dates(payload)
     year_start = int(date_from[:4])
     year_end = int(date_to[:4])
-    month = int(date_from[5:7]) if date_from[:7] == date_to[:7] else None
+    calendar_month = payload.get("calendar_month")
+    if calendar_month is None and hints is not None:
+        calendar_month = hints.calendar_month
+    raw_season = payload.get("season")
+    if raw_season is None and hints is not None:
+        raw_season = hints.season.value if hints.season else None
+    season = Season(raw_season) if raw_season else None
+    month = int(date_from[5:7]) if date_from[:7] == date_to[:7] and calendar_month is None else None
     include_anomaly = bool(payload.get("include_anomaly", False))
     params = QueryParams(
         query_type=query_type,
@@ -610,6 +744,8 @@ def _build_params(
         year_start=year_start,
         year_end=year_end,
         month=month,
+        calendar_month=calendar_month,
+        season=season,
         anomaly_requested=include_anomaly,
         date_from=date_from,
         date_to=date_to,
@@ -620,31 +756,7 @@ def _build_params(
     if hints is None:
         return params
 
-    if params.location.region_id != hints.location.region_id:
-        raise SemanticValidationError("The provider contradicted the canonical location mode.")
-    if params.parameters != hints.parameters:
-        raise SemanticValidationError(
-            "The provider contradicted the deterministic parameter hints."
-        )
-    if params.query_type is not hints.query_type:
-        raise SemanticValidationError(
-            "The provider contradicted the deterministic query-type hints."
-        )
-    if (params.date_from, params.date_to) != (hints.date_from, hints.date_to):
-        raise SemanticValidationError("The provider contradicted the deterministic date hints.")
-    if params.include_anomaly is not hints.include_anomaly:
-        raise SemanticValidationError("The provider contradicted the deterministic anomaly hints.")
-    if not math.isclose(
-        params.location.radius_km,
-        hints.location.radius_km,
-        rel_tol=0,
-        abs_tol=1e-9,
-    ):
-        raise SemanticValidationError("The provider contradicted the deterministic radius hint.")
-
-    # Application geography wins over model coordinates/labels. This prevents a
-    # valid-looking provider response from drifting a known coast or region.
-    return params.model_copy(update={"location": hints.location})
+    return params
 
 
 def _planner_prompt(today: date | None = None) -> str:
