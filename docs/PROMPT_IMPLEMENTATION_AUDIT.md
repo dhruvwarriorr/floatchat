@@ -1,6 +1,7 @@
 # PROMPT.md implementation audit
 
-> Audited against the supplied base prompt plus v7 parsing and v7b transparency
+> Audited against the supplied base prompt plus v7 parsing, v7b transparency, v7e
+> typo tolerance, and v7f AI sanitization
 > prompts on 24 August 2026. “Implemented” means code and local automated checks
 > exist; it does not imply external scientific, provider, browser, container, or
 > pitch acceptance.
@@ -11,9 +12,9 @@
 | --- | --- | --- |
 | 1. Data pipeline | Implemented and executed | `scripts/preprocess_argo.py`, `scripts/build_baselines.py`, ready manifest, 14,413,526 observations, separate production/validation Parquet artifacts, hashes, coverage report. |
 | 2. Config/models | Implemented | Central evidence thresholds, timeout/radius/CORS, `.env` loading, typed request/location/query/anomaly/evidence/multi-parameter models. |
-| 3A. LLM parser | Implemented; live credential rejected | Gemini `generateContent` structured JSON Schema, Pydantic validation, OpenAI Responses/Anthropic compatibility, safe provider errors, server-only secrets. |
-| 3B. Deterministic parser | Implemented | 114 canonical place/region aliases, hemispheric coordinates, radii, point-over-region priority, combined ranges with recurring months/seasons, relative dates, casual parameter/intent language, multi-parameter questions, and injection/out-of-scope rejection. |
-| 3C. Parser failover | Implemented and tested | Any provider exception falls back; model-disabled, malformed JSON, unexpected exception, and forced-failure tests disclose `rule_based`. |
+| 3A. LLM parser | Implemented; live credential rejected | Cached plain-text AI sanitizer with short timeout before the parser, plus Gemini `generateContent` structured JSON Schema, Pydantic validation, OpenAI Responses/Anthropic compatibility, safe provider errors, and server-only secrets. |
+| 3B. Deterministic parser | Implemented | 114 canonical place/region aliases, explicit typo/historical aliases, bounded `difflib` location n-grams with short-word protection, hemispheric coordinates, radii, point-over-region priority, combined ranges with recurring months/seasons, relative dates, casual parameter/intent language, multi-parameter questions, and injection/out-of-scope rejection. |
+| 3C. Parser failover | Implemented and tested | Sanitizer/provider exceptions and invalid outputs pass through to raw or sanitized deterministic parsing; model-disabled, malformed JSON, unexpected exception, timeout, and forced-failure tests disclose `rule_based`. |
 | 3. Data/QC/aggregation/anomaly/evidence/explain | Implemented and tested | Column-pruned Parquet retrieval, haversine/region filters, mandatory adjusted A/D QC, all three aggregations, production guard, Z-score boundaries, multi-signal grade, provenance composition. |
 | 4. API | Implemented and exercised | `POST /chat`, CORS, `health/live`, `health/ready`, safe 404/422/500/503 mapping, single and independent dual-parameter pipelines. |
 | 5. Dependencies | Implemented | Runtime `httpx`/`python-dotenv`; pandas/NumPy/PyArrow data extra; Leaflet/react-leaflet; zero current npm audit findings. |

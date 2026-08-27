@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import math
@@ -9,6 +10,7 @@ import unicodedata
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
+from functools import lru_cache
 from typing import Any
 
 import httpx
@@ -26,6 +28,7 @@ from app.models import (
 from app.services import parser_policy as policy
 from app.services.parser_policy import (  # re-exported for stable imports
     GAZETTEER,
+    LOCATION_ALIASES,
     MONTHS,
     QUERY_SCHEMA,
     REGION_BOXES,
@@ -36,14 +39,17 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "GAZETTEER",
+    "LOCATION_ALIASES",
     "MONTHS",
     "QUERY_SCHEMA",
     "REGION_BOXES",
     "REGION_NAMES",
     "UnsupportedQuery",
+    "fuzzy_match_location",
     "parse_llm",
     "parse_query",
     "parse_rule_based",
+    "sanitize_query",
 ]
 
 
@@ -395,7 +401,9 @@ def _validate_envelope(latitude: float, longitude: float) -> None:
         raise UnsupportedQuery("The coordinates fall outside the supported Indian Ocean envelope.")
 
 
-def _region_location(region_id: str, label: str, radius_km: float) -> QueryLocation:
+def _region_location(
+    region_id: str, label: str, radius_km: float, *, radius_explicit: bool = False
+) -> QueryLocation:
     lat_min, lat_max, lon_min, lon_max = REGION_BOXES[region_id]
     return QueryLocation(
         label=label,
@@ -403,12 +411,119 @@ def _region_location(region_id: str, label: str, radius_km: float) -> QueryLocat
         longitude=(lon_min + lon_max) / 2,
         region_id=region_id,
         radius_km=radius_km,
+        radius_explicit=radius_explicit,
         bounds=GeographicBounds(south=lat_min, west=lon_min, north=lat_max, east=lon_max),
         coordinate_precision=2,
     )
 
 
-def extract_location(query: str, radius_km: float) -> QueryLocation | None:
+def _location_text(value: str) -> str:
+    """Normalize location text for punctuation-safe exact and fuzzy matching."""
+
+    normalized = _normalize(value)
+    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _contains_location_name(normalized_query: str, name: str) -> bool:
+    normalized_name = _location_text(name)
+    return bool(
+        normalized_name
+        and re.search(
+            rf"(?<!\w){re.escape(normalized_name)}(?!\w)",
+            normalized_query,
+        )
+    )
+
+
+def _canonical_location_name(name: str) -> str:
+    return LOCATION_ALIASES.get(name, name)
+
+
+def _strict_location_name(query: str, names: dict[str, Any]) -> str | None:
+    normalized_query = _location_text(query)
+    for name in sorted(names, key=lambda value: len(_location_text(value)), reverse=True):
+        if _contains_location_name(normalized_query, name):
+            return name
+    return None
+
+
+def _alias_location_name(query: str, names: dict[str, Any]) -> str | None:
+    normalized_query = _location_text(query)
+    for alias in sorted(
+        LOCATION_ALIASES,
+        key=lambda value: len(_location_text(value)),
+        reverse=True,
+    ):
+        canonical = _canonical_location_name(alias)
+        if canonical in names and _contains_location_name(normalized_query, alias):
+            return canonical
+    return None
+
+
+def _location_ngrams(query: str, max_n: int = 3) -> list[str]:
+    words = _location_text(query).split()
+    chunks: list[str] = []
+    for size in range(min(max_n, len(words)), 0, -1):
+        chunks.extend(
+            " ".join(words[start : start + size])
+            for start in range(len(words) - size + 1)
+        )
+    return chunks
+
+
+def _fuzzy_location_name(query: str, names: dict[str, Any]) -> str | None:
+    normalized_by_name: dict[str, str] = {}
+    for name in names:
+        normalized_by_name.setdefault(_location_text(name), name)
+    choices = list(normalized_by_name)
+
+    for token in _location_ngrams(query):
+        # Fuzzy matching short words creates unacceptable collisions (for
+        # example, "god" -> "Goa" or "man" -> "Oman"). Exact and alias
+        # matching above still accepts short canonical names.
+        if len(token) <= 4:
+            continue
+        matches = difflib.get_close_matches(token, choices, n=1, cutoff=0.85)
+        if matches:
+            return _canonical_location_name(normalized_by_name[matches[0]])
+    return None
+
+
+def fuzzy_match_location(query: str) -> str | None:
+    """Return a canonical city or region key for an unanticipated typo."""
+
+    return _fuzzy_location_name(query, GAZETTEER) or _fuzzy_location_name(query, REGION_NAMES)
+
+
+def _location_from_name(
+    name: str, radius_km: float, *, radius_explicit: bool = False
+) -> QueryLocation | None:
+    canonical = _canonical_location_name(name)
+    if canonical in GAZETTEER:
+        latitude, longitude, label = GAZETTEER[canonical]
+        return QueryLocation(
+            label=label,
+            latitude=latitude,
+            longitude=longitude,
+            radius_km=radius_km,
+            radius_explicit=radius_explicit,
+            coordinate_precision=2,
+        )
+    if canonical in REGION_NAMES:
+        region_id, label = REGION_NAMES[canonical]
+        return _region_location(
+            region_id,
+            label,
+            radius_km,
+            radius_explicit=radius_explicit,
+        )
+    return None
+
+
+def extract_location(
+    query: str, radius_km: float, *, radius_explicit: bool = False
+) -> QueryLocation | None:
     coordinate_match = LAT_LON_PATTERN.search(query)
     if coordinate_match:
         latitude = float(coordinate_match.group("lat"))
@@ -433,22 +548,16 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
             latitude=latitude,
             longitude=longitude,
             radius_km=radius_km,
+            radius_explicit=radius_explicit,
             coordinate_precision=coordinate_precision,
         )
 
-    def _gazetteer_location() -> QueryLocation | None:
-        for name in sorted(GAZETTEER, key=len, reverse=True):
-            if not re.search(rf"\b{re.escape(name)}\b", query):
-                continue
-            latitude, longitude, label = GAZETTEER[name]
-            return QueryLocation(
-                label=label,
-                latitude=latitude,
-                longitude=longitude,
-                radius_km=radius_km,
-                coordinate_precision=2,
-            )
-        return None
+    strict_city = _strict_location_name(query, GAZETTEER)
+    alias_city = _alias_location_name(query, GAZETTEER)
+    fuzzy_city = _fuzzy_location_name(query, GAZETTEER)
+    strict_region = _strict_location_name(query, REGION_NAMES)
+    alias_region = _alias_location_name(query, REGION_NAMES)
+    fuzzy_region = _fuzzy_location_name(query, REGION_NAMES)
 
     # Point intent plus a known coast/city outranks a co-occurring named region.
     # Example: "near Mumbai in the Arabian Sea" must stay anchored to Mumbai.
@@ -456,25 +565,32 @@ def extract_location(query: str, radius_km: float) -> QueryLocation | None:
         r"\b(?:near|around|off|at|close\s+to|coast\s+of|within\s+\d+(?:\.\d+)?\s*km\s+of)\b",
         query,
     )
-    if point_intent and (gazetteer_location := _gazetteer_location()) is not None:
-        return gazetteer_location
+    if point_intent:
+        for name in (strict_city, alias_city, fuzzy_city):
+            if name and (location := _location_from_name(
+                name, radius_km, radius_explicit=radius_explicit
+            )) is not None:
+                return location
 
-    for name in sorted(REGION_NAMES, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(name)}\b", query):
-            region_id, label = REGION_NAMES[name]
-            return _region_location(region_id, label, radius_km)
+    for name in (strict_region, alias_region, fuzzy_region):
+        if name and (location := _location_from_name(
+            name, radius_km, radius_explicit=radius_explicit
+        )) is not None:
+            return location
 
-    return _gazetteer_location()
+    for name in (strict_city, alias_city, fuzzy_city):
+        if name and (location := _location_from_name(
+            name, radius_km, radius_explicit=radius_explicit
+        )) is not None:
+            return location
+    return None
 
 
 # --- Deterministic parser ----------------------------------------------------
 
 
-def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
-    query = _normalize(raw_query)
-    if not query:
-        raise UnsupportedQuery("The question was empty.")
-    unsupported_topic = next(
+def _unsupported_topic(query: str) -> str | None:
+    return next(
         (
             phrase.replace(r"\w*", "")
             for phrase in (*policy.OUT_OF_SCOPE_TERMS, *policy.NON_INDIAN_OCEAN_TERMS)
@@ -482,15 +598,31 @@ def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
         ),
         None,
     )
+
+
+def _raise_for_unsupported_raw_query(raw_query: str) -> None:
+    query = _normalize(raw_query)
+    if not query:
+        raise UnsupportedQuery("The question was empty.")
+    unsupported_topic = _unsupported_topic(query)
     if unsupported_topic:
         raise UnsupportedQuery(
             "FloatChat-Lite covers temperature and salinity from ARGO floats in the "
             f"Indian Ocean. I can't help with {unsupported_topic}."
         )
 
+
+def _extract_hints(raw_query: str, today: date | None = None) -> ParserHints:
+    query = _normalize(raw_query)
+    _raise_for_unsupported_raw_query(query)
+
     parameters = extract_parameters(query)
     radius_km = extract_radius(query)
-    location = extract_location(query, radius_km)
+    location = extract_location(
+        query,
+        radius_km,
+        radius_explicit=policy.RADIUS_PATTERN.search(query) is not None,
+    )
     if location is None:
         raise UnsupportedQuery("Include a named Indian Ocean location or latitude/longitude pair.")
 
@@ -800,6 +932,217 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str:
     raise MalformedProviderOutput("Gemini response did not contain output_text")
 
 
+def _extract_anthropic_text(payload: dict[str, Any]) -> str:
+    content = payload.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                return str(block["text"])
+    raise MalformedProviderOutput("Anthropic response did not contain text")
+
+
+def _extract_openai_text(payload: dict[str, Any]) -> str:
+    output_text = payload.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    choices = payload.get("choices")
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                return content
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str):
+                        return str(part["text"])
+
+    output = payload.get("output")
+    if isinstance(output, list):
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str):
+                        return str(part["text"])
+    raise MalformedProviderOutput("OpenAI response did not contain text")
+
+
+def _sanitizer_model(provider: str) -> str:
+    configured = os.getenv("FLOATCHAT_LLM_SANITIZER_MODEL") or os.getenv("LLM_SANITIZER_MODEL")
+    if configured and configured.strip():
+        return configured.strip()
+    if provider == "gemini":
+        return "gemini-2.5-flash-lite"
+    if provider == "anthropic":
+        return "claude-3-5-haiku-latest"
+    return os.getenv("LLM_MODEL") or "gpt-4o-mini"
+
+
+def _sanitizer_style(provider: str, base_url: str = "") -> str:
+    if provider == "gemini":
+        return os.getenv("GEMINI_API_STYLE", "generate_content").lower()
+    if provider == "openai":
+        configured = os.getenv("LLM_API_STYLE")
+        if configured:
+            return configured.lower()
+        return "responses" if base_url == "https://api.openai.com/v1" else "chat_completions"
+    return ""
+
+
+def _sanitized_text(content: str) -> str:
+    if not isinstance(content, str):
+        raise MalformedProviderOutput("The sanitizer did not return text.")
+    sanitized = re.sub(r"\s+", " ", content).strip()
+    if not sanitized or len(sanitized) > policy.SANITIZER_MAX_OUTPUT_CHARS:
+        raise MalformedProviderOutput("The sanitizer returned an invalid query.")
+    if sanitized.startswith("```") or sanitized.startswith(("{", "[")):
+        raise MalformedProviderOutput("The sanitizer returned structured output instead of text.")
+    return sanitized
+
+
+@lru_cache(maxsize=1000)
+def _sanitize_query_cached(
+    normalized_query: str,
+    provider: str,
+    model: str,
+    style: str,
+    base_url: str,
+) -> str:
+    """Call the configured provider for one normalized query.
+
+    Provider credentials are intentionally not part of the cache key. A key
+    rotation does not change the proofreading result, and leaving it out keeps
+    secrets away from cache metadata.
+    """
+
+    configuration = _configured_key()
+    if configuration is None or configuration[0] != provider:
+        raise ProviderNotConfigured("No server-side LLM sanitizer is configured.")
+    api_key = configuration[1]
+    timeout = getattr(get_settings(), "llm_sanitizer_timeout", policy.SANITIZER_TIMEOUT_SECONDS)
+    system_prompt = policy.build_sanitizer_prompt()
+
+    try:
+        if provider == "gemini":
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", model):
+                raise SchemaViolation("Gemini sanitizer model name contains unsafe characters")
+            if style == "interactions":
+                url = f"{base_url}/interactions"
+                request_json = {
+                    "model": model,
+                    "system_instruction": system_prompt,
+                    "input": normalized_query,
+                    "response_format": {"type": "text"},
+                }
+            else:
+                url = f"{base_url}/models/{model}:generateContent"
+                request_json = {
+                    "systemInstruction": {"parts": [{"text": system_prompt}]},
+                    "contents": [{"role": "user", "parts": [{"text": normalized_query}]}],
+                    "generationConfig": {
+                        "temperature": 0,
+                        "maxOutputTokens": policy.SANITIZER_MAX_OUTPUT_TOKENS,
+                    },
+                }
+            headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+        elif provider == "anthropic":
+            url = "https://api.anthropic.com/v1/messages"
+            request_json = {
+                "model": model,
+                "max_tokens": policy.SANITIZER_MAX_OUTPUT_TOKENS,
+                "temperature": 0,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": normalized_query}],
+            }
+            headers = {
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+                "x-api-key": api_key,
+            }
+        elif provider == "openai":
+            if style.startswith("chat_completions"):
+                url = f"{base_url}/chat/completions"
+                request_json = {
+                    "model": model,
+                    "temperature": 0,
+                    "max_tokens": policy.SANITIZER_MAX_OUTPUT_TOKENS,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": normalized_query},
+                    ],
+                }
+            else:
+                url = f"{base_url}/responses"
+                request_json = {
+                    "model": model,
+                    "instructions": system_prompt,
+                    "input": normalized_query,
+                    "max_output_tokens": policy.SANITIZER_MAX_OUTPUT_TOKENS,
+                }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+        else:
+            raise SchemaViolation("Unsupported LLM provider")
+
+        response = httpx.post(url, headers=headers, json=request_json, timeout=timeout)
+        response.raise_for_status()
+        payload = response.json()
+        if provider == "gemini":
+            content = _extract_gemini_text(payload)
+        elif provider == "anthropic":
+            content = _extract_anthropic_text(payload)
+        else:
+            content = _extract_openai_text(payload)
+        return _sanitized_text(content)
+    except UnsupportedQuery:
+        raise
+    except httpx.TimeoutException as exc:
+        raise ProviderTimeout("The query sanitizer timed out.") from exc
+    except httpx.HTTPStatusError as exc:
+        raise ProviderError("The query sanitizer returned an HTTP error.") from exc
+    except httpx.HTTPError as exc:
+        raise ProviderError("The query sanitizer could not be reached.") from exc
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:
+        raise MalformedProviderOutput("The query sanitizer returned invalid output.") from exc
+
+
+def sanitize_query(raw_query: str) -> str:
+    """Normalize a query with the optional AI sanitizer when it is configured."""
+
+    normalized_query = _normalize(raw_query)
+    configuration = _configured_key()
+    if configuration is None:
+        return normalized_query
+    provider = configuration[0]
+    model = _sanitizer_model(provider)
+    if provider == "gemini":
+        base_url = os.getenv(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+        ).rstrip("/")
+    elif provider == "openai":
+        base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    else:
+        base_url = ""
+    style = _sanitizer_style(provider, base_url)
+    return _sanitize_query_cached(normalized_query, provider, model, style, base_url)
+
+
+# Keep the normal cache inspection/clearing hooks available on the public
+# function while normalizing the cache key before the decorated call.
+sanitize_query.cache_info = _sanitize_query_cached.cache_info  # type: ignore[attr-defined]
+sanitize_query.cache_clear = _sanitize_query_cached.cache_clear  # type: ignore[attr-defined]
+
+
 def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
     configuration = _configured_key()
     if configuration is None:
@@ -950,11 +1293,32 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
 
 
 def parse_query(raw_query: str) -> QueryParams:
+    # Keep the raw safety boundary authoritative. A sanitizer must never be
+    # able to remove an injection or an explicitly unsupported topic.
+    _raise_for_unsupported_raw_query(raw_query)
+    query_for_parsing = raw_query
+
     if _configured_key() is not None:
         try:
-            return parse_llm(raw_query)
+            query_for_parsing = sanitize_query(raw_query)
+            logger.info("Sanitized query before parsing: %r -> %r", raw_query, query_for_parsing)
+        except Exception as exc:
+            logger.warning("Query sanitizer failed; using raw query; error=%s", type(exc).__name__)
+            query_for_parsing = raw_query
+
+        try:
+            return parse_llm(query_for_parsing)
         except UnsupportedQuery as exc:
             logger.warning("Optional query planner fell back; category=%s", exc.category)
         except Exception:
             logger.warning("Optional query planner fell back; category=unexpected_provider_failure")
-    return parse_rule_based(raw_query)
+
+    try:
+        return parse_rule_based(query_for_parsing)
+    except UnsupportedQuery:
+        # Treat a semantically unusable sanitizer response as a sanitizer
+        # failure too, and give the raw query's deterministic parser a chance.
+        if query_for_parsing != raw_query:
+            logger.warning("Sanitized query was not accepted; retrying manual parsing on raw query")
+            return parse_rule_based(raw_query)
+        raise

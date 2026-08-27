@@ -4,5 +4,7 @@ export const suggestedQueries = [
   "Show average salinity in the Arabian Sea in 2023",
   "Compare temperature and salinity profiles at 10N 70E within 150 km in July 2024",
   "Show temperature profile near Mumbai in July 2024",
+  "Show temperature profile near Gujarat in 2024",
+  "Show temperature profile near Kerala in 2024",
   "Show average salinity in the Bay of Bengal in 2023",
 ] as const;

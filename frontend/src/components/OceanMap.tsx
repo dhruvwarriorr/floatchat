@@ -45,7 +45,7 @@ function selectionFromContext(context: MapContext): MapSelection {
     label: context.label,
     latitude: context.marker.latitude,
     longitude: context.marker.longitude,
-    radiusKm: context.radiusKm || 100,
+    radiusKm: context.radiusKm || 300,
   };
 }
 
@@ -124,9 +124,12 @@ export function OceanMap({ context }: { context: MapContext }) {
     ? `Regional selection: ${context.label}`
     : `Point selection: ${context.label}`;
   const radiusLabel = isRegion ? "Regional selection" : `Search radius: ${formatRadius(selection.kind === "point" ? selection.radiusKm : 0)}`;
+  const nearestLabel = !isRegion && context.nearestObservationKm !== undefined
+    ? ` Nearest float: ${context.nearestObservationKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km.`
+    : "";
   const textEquivalent = isRegion
     ? `${context.label} regional selection, bounds ${context.region!.south.toFixed(1)}°–${context.region!.north.toFixed(1)}° latitude, ${context.region!.west.toFixed(1)}°–${context.region!.east.toFixed(1)}° longitude.`
-    : `${context.label} at ${formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)}, ${radiusLabel.toLowerCase()}.`;
+    : `${context.label} at ${formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)}, ${radiusLabel.toLowerCase()}.${nearestLabel}`;
 
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -201,6 +204,7 @@ export function OceanMap({ context }: { context: MapContext }) {
               <strong>{context.label}</strong><br />
               {isRegion ? "Region centre" : formatCoordinates(context.marker.latitude, context.marker.longitude, coordinatePrecision)}
               <br />{radiusLabel}
+              {!isRegion && context.nearestObservationKm !== undefined && <><br />Nearest float: {context.nearestObservationKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</>}
             </Tooltip>
           </CircleMarker>
         </MapContainer>

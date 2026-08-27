@@ -5,7 +5,7 @@ const points = (labels: Array<string | number>, values: number[]) =>
 
 const illustrativeTrust = (profileCount: number): Pick<
   OceanResponse,
-  "evidenceGrade" | "evidenceGradeReasons" | "evidencePanel" | "dataQualityWarning" | "parserUsed" | "source"
+  "evidenceGrade" | "evidenceGradeReasons" | "evidencePanel" | "dataQualityWarning" | "parserUsed" | "source" | "dataSufficiency"
 > => ({
   evidenceGrade: profileCount <= 5 ? "Insufficient" : profileCount <= 20 ? "Indicative" : "Supported",
   evidenceGradeReasons: ["legacy_illustrative_profile_count_only"],
@@ -27,6 +27,12 @@ const illustrativeTrust = (profileCount: number): Pick<
   dataQualityWarning: false,
   parserUsed: "rule_based",
   source: "Illustrative local response; not live scientific data",
+  dataSufficiency: {
+    requestedRadiusKm: null,
+    actualRadiusKm: null,
+    radiusExpanded: false,
+    nearestObservationKm: null,
+  },
 });
 
 export const confidenceForProfileCount = (profileCount: number): Confidence => {

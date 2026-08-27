@@ -37,6 +37,14 @@ export interface QueryMetadata {
   parameter: string;
   resultType: string;
   searchArea: string;
+  nearestObservation?: string;
+}
+
+export interface DataSufficiencyDetails {
+  requestedRadiusKm: number | null;
+  actualRadiusKm: number | null;
+  radiusExpanded: boolean;
+  nearestObservationKm: number | null;
 }
 
 export interface MapContext {
@@ -44,6 +52,7 @@ export interface MapContext {
   coordinates: string;
   marker: { longitude: number; latitude: number };
   radiusKm?: number;
+  nearestObservationKm?: number;
   coordinatePrecision?: number;
   floatPositions?: Array<{
     floatId: string;
@@ -150,6 +159,7 @@ export interface OceanResponse {
   parameterSeries?: Record<string, ParameterSeries>;
   secondaryViews?: Record<string, ApiAggregateData>;
   supplementaryData?: ApiSupplementary;
+  dataSufficiency: DataSufficiencyDetails;
   parameterKey?: string;
   unit?: string;
 }

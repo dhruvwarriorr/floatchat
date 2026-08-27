@@ -1,6 +1,7 @@
 import type { ChatApiResponse } from "./chatApi";
 import type {
   Confidence,
+  DataSufficiencyDetails,
   DataPoint,
   EvidenceGrade,
   MapContext,
@@ -168,8 +169,31 @@ function chartSummary(response: ChatApiResponse): string {
   return `${count} QC-passed profiles contribute to this view; the representative value is ${current.toFixed(2)} ${response.data.unit}.`;
 }
 
+function distanceLabel(value: number): string {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+}
+
+function retrievalDetails(response: ChatApiResponse): DataSufficiencyDetails {
+  return {
+    requestedRadiusKm: response.data_sufficiency.requested_radius_km,
+    actualRadiusKm: response.data_sufficiency.actual_radius_km,
+    radiusExpanded: response.data_sufficiency.radius_expanded,
+    nearestObservationKm: response.data_sufficiency.nearest_observation_km,
+  };
+}
+
 export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
   const location = response.params.location;
+  const sufficiency = retrievalDetails(response);
+  const actualRadius = sufficiency.actualRadiusKm ?? response.data_sufficiency.coverage_radius_km ?? location.radius_km;
+  const searchArea = location.region_id
+    ? `Named region bounds centred at ${coordinates(response)}`
+    : sufficiency.radiusExpanded && sufficiency.requestedRadiusKm !== null
+      ? `${distanceLabel(actualRadius)} (auto-expanded from ${distanceLabel(sufficiency.requestedRadiusKm)})`
+      : `${distanceLabel(actualRadius)} search radius`;
+  const nearestObservation = !location.region_id && sufficiency.nearestObservationKm !== null
+    ? `${distanceLabel(sufficiency.nearestObservationKm)} from ${location.label}`
+    : undefined;
   const marker = {
     latitude: location.latitude,
     longitude: location.longitude,
@@ -187,9 +211,8 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
         ? response.params.parameters.map((value) => PARAMETER_LABELS[value] || value).join(" and ")
         : PARAMETER_LABELS[response.params.parameter] || response.params.parameter,
       resultType: RESULT_LABELS[response.query_type] || response.query_type,
-      searchArea: location.region_id
-        ? `Named region bounds centred at ${coordinates(response)}`
-        : `${location.radius_km.toLocaleString()} km search radius`,
+      searchArea,
+      nearestObservation,
     },
     insight: response.summary,
     parameterDefinition: response.params.parameter === "salinity"
@@ -211,7 +234,8 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       label: location.label,
       coordinates: coordinates(response),
       marker,
-      radiusKm: location.radius_km,
+      radiusKm: location.region_id ? undefined : actualRadius,
+      nearestObservationKm: sufficiency.nearestObservationKm ?? undefined,
       coordinatePrecision: location.coordinate_precision ?? 2,
       floatPositions: response.evidence_panel.float_positions.map((position) => ({
         floatId: position.float_id,
@@ -264,6 +288,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
     parameterSeries: parameterSeries(response),
     secondaryViews: response.secondary_views,
     supplementaryData: response.supplementary_data,
+    dataSufficiency: sufficiency,
     parameterKey: response.data.parameter,
     unit: response.data.unit,
   };

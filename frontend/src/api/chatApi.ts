@@ -11,6 +11,7 @@ export interface ApiLocation {
   longitude: number;
   region_id: string | null;
   radius_km: number;
+  radius_explicit?: boolean;
   bounds?: ApiBounds | null;
   coordinate_precision?: number;
 }
@@ -194,6 +195,10 @@ export interface ApiParameterResult {
     profile_count: number;
     coverage: string;
     coverage_radius_km: number | null;
+    requested_radius_km: number | null;
+    actual_radius_km: number | null;
+    radius_expanded: boolean;
+    nearest_observation_km: number | null;
   };
   secondary_views?: Record<string, ApiAggregateData>;
   supplementary_data?: ApiSupplementary;
@@ -215,6 +220,10 @@ export interface ChatApiResponse {
     profile_count: number;
     coverage: string;
     coverage_radius_km: number | null;
+    requested_radius_km: number | null;
+    actual_radius_km: number | null;
+    radius_expanded: boolean;
+    nearest_observation_km: number | null;
   };
   parser_used: "llm" | "rule_based";
   source: string;
