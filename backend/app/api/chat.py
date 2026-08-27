@@ -43,6 +43,8 @@ from app.services.data import (
 )
 from app.services.evidence import compute_evidence_grade
 from app.services.explain import SHALLOW_PROXY_CAVEAT, compose_evidence_panel
+from app.services.live_source import LiveSourceError, fetch_argo_profiles, is_enabled
+from app.services.live_source import normalize_argo_profiles as normalize_live_argo_profiles
 from app.services.parser import REGION_BOXES, UnsupportedQuery, parse_query
 from app.services.parser_policy import MAX_RADIUS_KM
 from app.services.qc import apply_qc_filter
@@ -600,6 +602,41 @@ def chat(request: ChatRequest) -> JSONResponse:
         raw_records, params, retrieval_details = _retrieve_with_auto_expansion(
             repository, params, retrieval_parameter
         )
+        live_source_used = False
+        live_source_caveat: str | None = None
+        if (
+            raw_records.empty
+            and is_enabled()
+            and params.location.latitude is not None
+            and params.location.longitude is not None
+            and params.date_from
+            and params.date_to
+        ):
+            # Additive fallback only: local retrieval -- including the
+            # automatic radius expansion above -- already returned no rows,
+            # so trying an unreviewed public source cannot make a good local
+            # answer worse. Any failure here falls through to the unchanged
+            # no-data response.
+            try:
+                documents = fetch_argo_profiles(
+                    params.location.latitude,
+                    params.location.longitude,
+                    params.location.radius_km,
+                    params.date_from,
+                    params.date_to,
+                )
+                live_records = _apply_query_filters(
+                    normalize_live_argo_profiles(documents), params
+                )
+            except LiveSourceError:
+                live_records = raw_records  # stays empty; unchanged fallback below
+            if not live_records.empty:
+                raw_records = live_records
+                live_source_used = True
+                live_source_caveat = (
+                    "This answer used an unreviewed live fetch from the public Argovis "
+                    "service, not the frozen production Parquet artifact."
+                )
         if raw_records.empty:
             return _no_data_response(repository, params, retrieval_parameter)
         version = repository.get_manifest_version()
@@ -642,6 +679,8 @@ def chat(request: ChatRequest) -> JSONResponse:
             results_by_parameter=results,
             secondary_views=primary.secondary_views,
             supplementary_data=primary.supplementary_data,
+            live_source_used=live_source_used,
+            live_source_caveat=live_source_caveat,
         )
         return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
     except NoDataFound:

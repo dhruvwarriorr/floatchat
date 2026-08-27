@@ -267,6 +267,8 @@ class ChatResponse(BaseModel):
     results_by_parameter: dict[str, ParameterResult] = Field(default_factory=dict)
     secondary_views: dict[str, Any] = Field(default_factory=dict)
     supplementary_data: dict[str, Any] = Field(default_factory=dict)
+    live_source_used: bool = False
+    live_source_caveat: str | None = None
 
 
 class ErrorQueryContext(BaseModel):
