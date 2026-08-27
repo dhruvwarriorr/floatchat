@@ -542,7 +542,7 @@ def parse_llm(raw_query: str, timeout: float | None = None) -> QueryParams:
             base_url = os.getenv(
                 "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
             ).rstrip("/")
-            model = os.getenv("FLOATCHAT_LLM_MODEL") or os.getenv("LLM_MODEL") or "gemini-2.5-flash"
+            model = os.getenv("FLOATCHAT_LLM_MODEL") or os.getenv("LLM_MODEL") or "gemini-3.6-flash"
             if not re.fullmatch(r"[A-Za-z0-9._-]+", model):
                 raise SchemaViolation("Gemini model name contains unsafe characters")
             style = os.getenv("GEMINI_API_STYLE", "generate_content").lower()

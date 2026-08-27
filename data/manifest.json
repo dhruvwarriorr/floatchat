@@ -99,7 +99,7 @@
       }
     ]
   },
-  "created_at": "2026-08-22T06:47:43.074625+00:00",
+  "created_at": "2026-08-22T09:15:49.348085+00:00",
   "build_command": "python scripts/preprocess_argo.py && python scripts/build_baselines.py",
   "qc_policy": {
     "version": "scientific-policy-0.2",
@@ -155,22 +155,22 @@
     {
       "path": "processed/argo_profiles.parquet",
       "kind": "profiles",
-      "sha256": "450f592a6d2e61fd13e61c1d0fcb6bf5f0fa763760ce67d07b2a3db814b909fd",
-      "size_bytes": 173438173,
+      "sha256": "24c0c57bd07fcd71abc764576674c1dc7c6117aa36c7274a4e7255f9f5951a19",
+      "size_bytes": 173438171,
       "row_count": 14413526
     },
     {
       "path": "baselines/production/baseline.parquet",
       "kind": "production_baseline",
-      "sha256": "c5ba327bacf0201b7c8af8e514cd32bc751e416f1e0d7eb85a5451cd94e7ede2",
-      "size_bytes": 196802,
+      "sha256": "8acb76ca1acd34e7f777b8d8d160a3035f16fc4987e8cb32e8bba72e149c1ae9",
+      "size_bytes": 196797,
       "row_count": 9031
     },
     {
       "path": "baselines/validation/baseline.parquet",
       "kind": "validation_baseline",
-      "sha256": "644b7e8952541c6f758b9c5ed51fda19ed0bc7814ac4fe2cea99de9f4b941c43",
-      "size_bytes": 127492,
+      "sha256": "6c46371fd79367c3851f8e173cce58fb711315053f04c8319eae2b05f771d003",
+      "size_bytes": 127491,
       "row_count": 6642
     }
   ]
