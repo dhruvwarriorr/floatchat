@@ -8,7 +8,8 @@
 | --- | --- | --- | --- |
 | Integrated UI | ✅ implemented | Recharts plus Leaflet/CARTO, multi-parameter toggles, and typed `/chat` adapter | Browser/projector acceptance remains. |
 | Data preprocessing/manifest | ✅ query-ready | 14.4M-row Arabian-Sea Parquet, hashes, coverage report, separate baselines | Licence review still blocks public redistribution. |
-| Deterministic parser | ✅ implemented | 114 aliases plus named regions, coordinates, compound month/season dates, casual language, type/anomaly intent, safety rejection, and disclosed fallback | Generated report requires review. |
+| Deterministic parser | ✅ implemented | 114 canonical aliases plus explicit typo/historical aliases, bounded fuzzy location matching, named regions, coordinates, compound month/season dates, casual language, type/anomaly intent, safety rejection, and disclosed fallback | Generated report requires review. |
+| AI query sanitizer | 🟡 implemented/unaccepted | Cached plain-text preprocessing with a short timeout and raw-query fail-open behavior before both parser paths | Provider-enabled evidence requires a valid authorized credential. |
 | Gemini LLM parser | 🟡 implemented/unaccepted | Schema-constrained server-only Gemini parser plus deterministic failover | Provider-enabled evidence requires a valid authorized credential. |
 | Scientific retrieval | ✅ implemented | Column-pruned Parquet spatial/date/recurring-period filters and diagnostic `no_data` with a wider-search probe | Release data coverage remains incomplete. |
 | QC Filter | ✅ implemented | Auditable position/mode/adjusted-QC/value rules | Manual profile review remains. |

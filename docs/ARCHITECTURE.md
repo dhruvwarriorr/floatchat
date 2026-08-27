@@ -42,7 +42,7 @@ graph TD
 |---|---|---|
 | Frontend | React + TypeScript, Recharts (charts), Leaflet (maps) | Typed interactive charts and maps with the established application component system |
 | Backend / API | Python 3.10+, FastAPI | Async-friendly, minimal boilerplate, fast to stand up endpoints in a hackathon timeframe |
-| Query Parsing | Direct structured-output provider call (Gemini by default; documented compatible providers) plus deterministic policy/fallback — no LangChain | The provider may interpret dates and intent, while deterministic geography, safety, schema validation, and fallback keep the result bounded and reproducible |
+| Query Parsing | Short optional AI sanitizer, direct structured-output provider call (Gemini by default; documented compatible providers), plus deterministic policy/fallback — no LangChain | The sanitizer corrects wording before both parser paths; deterministic geography, typo aliases/fuzzy matching, safety, schema validation, and fallback keep the result bounded and reproducible |
 | Data Processing | pandas, NumPy | Standard scientific Python stack for validating INCOIS CSV exports and producing query-able tables |
 | Anomaly Model | NumPy Z-score calculation, no Isolation Forest | Z-score vs. climatology is simple to implement, explain to judges, and validate in 2 days |
 | Data Storage | CSV/Parquet files (preprocessed from reviewed INCOIS CSV exports), no MongoDB | Zero-config, fast, nothing to break on demo day; the dataset is small and read-heavy, not written to live |
@@ -61,13 +61,13 @@ graph TD
 - **Interfaces:** Exposes `POST /chat` to the frontend; internally calls the LLM Query Parser, Data Layer, Anomaly Model, and Explainability Layer.
 - **Depends on:** LLM API provider, Data Layer, Anomaly Model, Explainability Layer.
 
-### 4.3 LLM Query Parser
-- **Responsibility:** May propose exact-schema structured parameters from free text. The provider is authoritative for supported intent and temporal interpretation when it supplies them. Deterministic policy remains authoritative for the canonical place/coordinates, radius, supported parameters, geography/safety boundary, and schema. Provider failure or an invalid plan falls back without breaking the request.
-- **Interfaces:** Called by the FastAPI Backend; calls the configured structured-output provider with one server-side key.
-- **Depends on:** External LLM API availability and latency; falls through to the Rule-Based Parser on failure or timeout.
+### 4.3 AI Query Sanitizer and LLM Query Parser
+- **Responsibility:** The optional sanitizer proofreads one raw query, standardizes parameter wording, and maps common misspellings to canonical names before the structured planner and deterministic parser receive it. It emits plain text only, uses a short timeout, and is cached in memory. The structured planner may then propose exact-schema parameters. Deterministic policy remains authoritative for canonical place/coordinates, radius, supported parameters, geography/safety boundary, and schema.
+- **Interfaces:** Called by the FastAPI Backend; both calls use the configured provider and one server-side key. A sanitizer failure passes the raw query through; a planner failure falls through to deterministic parsing.
+- **Depends on:** Optional external LLM API availability and latency; the pure Python typo-aware Rule-Based Parser remains the final fallback.
 
 ### 4.4 Rule-Based Parser (Fallback)
-- **Responsibility:** Deterministically parses queries using a 100-plus-alias canonical Indian Ocean gazetteer shared with the provider prompt, hemispheric coordinates and radii, year/month/range/relative/season combinations, casual parameter and intent phrases, and boundary-aware matching. An explicit place or coordinate takes priority over a broad ocean name. It preserves coordinate precision, supports multi-parameter questions, and rejects unsupported, injected, or out-of-policy values. Always tags output `parser_used: "rule_based"`.
+- **Responsibility:** Deterministically parses queries using a 100-plus-alias canonical Indian Ocean gazetteer, explicit typo/historical-name aliases, bounded `difflib` fuzzy matching for longer tokens and location n-grams, hemispheric coordinates and radii, year/month/range/relative/season combinations, casual parameter and intent phrases, and boundary-aware matching. An explicit place or coordinate takes priority over a broad ocean name. It preserves coordinate precision, supports multi-parameter questions, and rejects unsupported, injected, or out-of-policy values. Always tags output `parser_used: "rule_based"`.
 - **Interfaces:** Invoked directly when no provider is configured and as the mandatory fallback when the LLM times out, fails, or returns invalid output.
 - **Depends on:** Nothing external — pure Python, no network calls, by design (it exists to be the reliable fallback).
 
@@ -199,7 +199,14 @@ erDiagram
   },
   "data_quality_warning": false,
   "answer_explanation": "Values are monthly averages of all ARGO profiles within ~50km of 19N, 72.8E. SST is a shallowest-measurement proxy (<=10m), not satellite SST. Source: INCOIS ARGO subset (2015-2024).",
-  "data_sufficiency": { "profile_count": 15, "coverage_radius_km": 50 },
+  "data_sufficiency": {
+    "profile_count": 15,
+    "coverage_radius_km": 50,
+    "requested_radius_km": 50,
+    "actual_radius_km": 50,
+    "radius_expanded": false,
+    "nearest_observation_km": 42.3
+  },
   "parser_used": "llm",
   "source": "INCOIS ARGO"
 }

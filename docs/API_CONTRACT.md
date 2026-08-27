@@ -23,7 +23,7 @@ The browser calls only this API through `frontend/src/api/chatApi.ts`; `frontend
 
 Structurally invalid requests use FastAPI/Pydantic's standard `422` body. Project-envelope normalization remains a contract decision.
 
-The returned `params.location` is also validated. Every selection carries a complete latitude/longitude display centre so the map never invents a fallback coordinate. A point also carries its radius and `coordinate_precision` (0–4, used only for honest display formatting). A named region carries its canonical backend `bounds`; point locations cannot carry region bounds, and named regions cannot omit them. Explicit radii outside 1–2000 km are rejected rather than silently clamped.
+The returned `params.location` is also validated. Every selection carries a complete latitude/longitude display centre so the map never invents a fallback coordinate. A point also carries its radius, whether that radius was explicit, and `coordinate_precision` (0–4, used only for honest display formatting). A named region carries its canonical backend `bounds`; point locations cannot carry region bounds, and named regions cannot omit them. Explicit radii outside 1–2000 km are rejected rather than silently clamped.
 
 `QueryParams` also preserves compound time meaning. A one-off month uses `month`;
 a recurring month across a year range uses `calendar_month`; and named periods use
@@ -34,10 +34,18 @@ The words “today”, “current”, “latest”, and “now” resolve to the
 artifact's latest represented observation date (currently 2026-08-21), not to a
 claim about live ocean conditions.
 
+Point/coastal queries use a 300 km radius by default. An explicit radius remains
+authoritative; when an implicit point selection is empty, the backend retries at
+500 km and then 750 km before returning the existing diagnostic `no_data` response.
+Successful point responses expose `requested_radius_km`, `actual_radius_km`,
+`radius_expanded`, and `nearest_observation_km` in `data_sufficiency` so the UI can
+show the actual search area and nearest retained observation.
+
 ## Target processing order
 
 ```text
 validated query
+  → optional AI sanitizer (short timeout, plain text, cached)
   → parser (LLM optional, deterministic fallback mandatory)
   → retrieve matching raw records
   → apply the parsed recurring calendar-month or season filter
@@ -64,7 +72,7 @@ The anomaly service must never receive QC-rejected records.
 | `evidence_grade_reasons` | Machine-readable or stable textual reasons for the grade. |
 | `evidence_panel` | QC rule and exclusion reasons; raw/valid/excluded profile and observation counts; distinct floats and positions; QC pass rate; actual aggregation method, bins, and per-bin counts; current aggregate; selected baseline grid/region, month, mean/std/`n`, and distinct floats; threshold-by-threshold evidence checks; source/version and record provenance. |
 | `data_quality_warning` | True when QC leaves too little trustworthy evidence or exposes a material quality limitation. |
-| `data_sufficiency` | Raw factual counts/coverage only; no trust label. |
+| `data_sufficiency` | Raw factual counts/coverage only; includes requested/actual point radius, whether it was auto-expanded, and nearest retained observation distance; no trust label. |
 | `answer_explanation` | Source, aggregation, dates, region/radius, proxy caveats, and plain-language interpretation. |
 | `parser_used` | `llm` or `rule_based`; fallback must be disclosed. |
 | `source` / dataset version | Reviewed artifact identity. |

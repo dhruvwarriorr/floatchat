@@ -47,6 +47,7 @@ test("renders Recharts with an interactive Leaflet map and parameter controls", 
   assert.match(map, /CircleMarker/);
   assert.match(map, /Rectangle/);
   assert.match(map, /floatPositions/);
+  assert.match(map, /Nearest float/);
   assert.match(packageJson, /react-leaflet/);
   assert.doesNotMatch(packageJson, /plotly|langchain|drizzle|cloudflare/i);
 });
@@ -61,6 +62,8 @@ test("renders clickable, coverage-aware suggested questions", async () => {
   assert.match(composer, /onSuggestedClick\(suggestion\)/);
   assert.match(composer, /event\.key === "Enter"/);
   assert.match(suggestions, /Mumbai/);
+  assert.match(suggestions, /Gujarat/);
+  assert.match(suggestions, /Kerala/);
   assert.match(suggestions, /Arabian Sea/);
   assert.match(suggestions, /10N 70E/);
   assert.match(suggestions, /Bay of Bengal/);
@@ -81,8 +84,11 @@ test("adapts QC, evidence, parser, anomaly, and source fields", async () => {
   assert.match(adapter, /qc_pass_rate/);
   assert.match(adapter, /parserUsed: response\.parser_used/);
   assert.match(adapter, /source: response\.source/);
+  assert.match(adapter, /radius_expanded/);
+  assert.match(adapter, /nearest_observation_km/);
   assert.match(adapter, /interpretedQuery: response\.interpreted_title \|\| response\.summary/);
   assert.match(result, /dataQualityWarning/);
+  assert.match(result, /Nearest observation/);
   assert.match(result, /parserUsed === "rule_based"/);
   assert.match(result, /source-disclosure/);
 });

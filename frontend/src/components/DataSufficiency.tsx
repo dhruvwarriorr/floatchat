@@ -1,4 +1,4 @@
-import { CircleCheck, Gauge, Radar, TriangleAlert } from "lucide-react";
+import { CircleCheck, Gauge, LocateFixed, Radar, TriangleAlert } from "lucide-react";
 import type { OceanResponse } from "../types/ocean";
 import { ExplanationCard, TermDefinition } from "./Transparency";
 
@@ -46,6 +46,8 @@ export function DataSufficiency({ response }: { response: OceanResponse }) {
       <dl className="sufficiency-metrics">
         <div><span><Radar size={16} aria-hidden="true" /></span><dt>Valid profiles</dt><dd>{response.profileCount}</dd></div>
         <div><span><Gauge size={16} aria-hidden="true" /></span><dt>Coverage</dt><dd>{response.coverage}</dd></div>
+        {response.dataSufficiency.actualRadiusKm !== null && <div><span><Gauge size={16} aria-hidden="true" /></span><dt>Search area</dt><dd>{response.metadata.searchArea}</dd></div>}
+        {response.dataSufficiency.nearestObservationKm !== null && <div><span><LocateFixed size={16} aria-hidden="true" /></span><dt>Nearest data</dt><dd>{response.dataSufficiency.nearestObservationKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</dd></div>}
         <div><span><CircleCheck size={16} aria-hidden="true" /></span><dt>Evidence</dt><dd>{response.evidenceGrade}</dd></div>
       </dl>
       <p className="confidence-note"><strong>Why this grade:</strong> {response.confidenceNote || "No grade reasons were returned."}</p>

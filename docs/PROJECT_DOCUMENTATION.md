@@ -7,7 +7,7 @@
 FloatChat-Lite is a stateless React/FastAPI MVP for natural-language exploration of temperature and salinity in an installed Arabian Sea ARGO subset. It accepts wider Indian Ocean questions but returns typed `no_data` when the local artifacts do not cover the requested selection.
 
 ```text
-query → Gemini schema parser or deterministic fallback
+query → optional AI sanitizer → Gemini schema parser or deterministic fallback
       → Parquet retrieval → recurring month/season filter → adjusted A/D QC filter
       → per-profile aggregation → production baseline
       → evidence grade → response and point-level provenance
@@ -19,7 +19,7 @@ query → Gemini schema parser or deterministic fallback
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite, Recharts, Leaflet/CARTO with actual contributing floats, suggested queries, diagnostic typed failures, multi-parameter toggles, evidence/source traces, chart explainers, and a clickable glossary. |
 | API | FastAPI/Pydantic `POST /chat`, CORS, sanitized 404/422/500/503 responses, liveness, and artifact-aware readiness. |
-| Parsing | Optional structured JSON planning with server-only credentials; deterministic canonical geography/parameters/radius and 114 aliases plus named regions, coordinates, compound temporal grammar, safety rejection, and fallback. |
+| Parsing | Optional short-lived AI query sanitization and structured JSON planning with server-only credentials; deterministic canonical geography/parameters/radius, explicit typo aliases, bounded fuzzy matching, named regions, coordinates, compound temporal grammar, safety rejection, and fallback. |
 | Data | 14,413,526 query-ready observations, 77,172 profiles, 531 floats, versioned manifest, artifact hashes, and column-pruned Parquet scans. |
 | Science | Mandatory adjusted A/D QC, profile/time-series/regional aggregation, production-only Z-score, evidence-grade suppression, and shallow-proxy caveat. |
 | Traceability | Dataset/source, artifact SHA-256, selection, QC counts/reasons, profile/float IDs, and source-row samples for every displayed chart point. |
@@ -48,7 +48,7 @@ make dev-api
 make dev-web
 ```
 
-Configure the optional parser in root `.env` with the single `FLOATCHAT_LLM_API_KEY`, plus `LLM_PROVIDER` and `LLM_MODEL`. The browser never receives the key.
+Configure the optional sanitizer/planner in root `.env` with the single `FLOATCHAT_LLM_API_KEY`, plus `LLM_PROVIDER`, `LLM_MODEL`, and—optionally—`FLOATCHAT_LLM_SANITIZER_MODEL` and `FLOATCHAT_LLM_SANITIZER_TIMEOUT_SECONDS`. The browser never receives the key. Sanitizer or planner failure falls through to deterministic typo-aware parsing.
 
 ## Remaining acceptance gates
 

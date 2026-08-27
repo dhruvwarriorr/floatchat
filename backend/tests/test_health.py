@@ -33,7 +33,7 @@ def test_readiness_is_honest_when_manifest_is_missing(
             data_dir=tmp_path,
             static_dir=tmp_path / "static",
             llm_timeout=1,
-            default_radius_km=100,
+            default_radius_km=300,
             grade_thresholds=EvidenceGradeThresholds(),
             cors_origins=("http://test",),
         ),

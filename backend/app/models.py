@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.services.parser_policy import DEFAULT_RADIUS_KM, MAX_RADIUS_KM, MIN_RADIUS_KM
+
 
 class QueryType(StrEnum):
     PROFILE = "profile"
@@ -88,7 +90,8 @@ class QueryLocation(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     region_id: str | None = None
-    radius_km: float = Field(default=100.0, ge=1.0, le=2000.0)
+    radius_km: float = Field(default=DEFAULT_RADIUS_KM, ge=MIN_RADIUS_KM, le=MAX_RADIUS_KM)
+    radius_explicit: bool = False
     bounds: GeographicBounds | None = None
     coordinate_precision: int = Field(default=2, ge=0, le=4)
 
@@ -164,6 +167,10 @@ class DataSufficiency(BaseModel):
     profile_count: int = Field(ge=0)
     coverage: str
     coverage_radius_km: float | None = Field(default=None, ge=0)
+    requested_radius_km: float | None = Field(default=None, ge=0)
+    actual_radius_km: float | None = Field(default=None, ge=0)
+    radius_expanded: bool = False
+    nearest_observation_km: float | None = Field(default=None, ge=0)
 
 
 class EvidenceCheck(BaseModel):

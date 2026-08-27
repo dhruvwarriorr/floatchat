@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from calendar import month_abbr
+from dataclasses import dataclass
 from datetime import date
 
 from fastapi import APIRouter
@@ -47,6 +48,16 @@ from app.services.parser_policy import MAX_RADIUS_KM
 from app.services.qc import apply_qc_filter
 
 router = APIRouter(tags=["chat"])
+
+
+@dataclass(frozen=True)
+class RetrievalDetails:
+    requested_radius_km: float | None
+    actual_radius_km: float | None
+    radius_expanded: bool = False
+
+
+AUTO_EXPANSION_RADII_KM = (500.0, 750.0)
 
 
 def error_response(
@@ -110,6 +121,39 @@ def _apply_query_filters(records, params: QueryParams):
         calendar_month=params.calendar_month,
         season=params.season,
     )
+
+
+def _retrieve_with_auto_expansion(
+    repository: DataRepository, params: QueryParams, parameter: Parameter
+):
+    """Retrieve a point selection, widening only an implicit radius when empty."""
+
+    location = params.location
+    requested_radius = None if location.region_id else location.radius_km
+    details = RetrievalDetails(
+        requested_radius_km=requested_radius,
+        actual_radius_km=requested_radius,
+    )
+    records = _apply_query_filters(_retrieve(repository, params, parameter), params)
+    if not records.empty or location.region_id or location.radius_explicit:
+        return records, params, details
+
+    for expanded_radius in AUTO_EXPANSION_RADII_KM:
+        if expanded_radius <= location.radius_km:
+            continue
+        expanded_location = location.model_copy(update={"radius_km": expanded_radius})
+        expanded_params = params.model_copy(update={"location": expanded_location})
+        records = _apply_query_filters(
+            _retrieve(repository, expanded_params, parameter), expanded_params
+        )
+        if not records.empty:
+            return records, expanded_params, RetrievalDetails(
+                requested_radius_km=requested_radius,
+                actual_radius_km=expanded_radius,
+                radius_expanded=True,
+            )
+
+    return records, params, details
 
 
 def _baseline_month(params: QueryParams, agg_data: dict[str, object]) -> int:
@@ -216,7 +260,35 @@ def _interpreted_title(params: QueryParams) -> str:
     return f"{parameter_name}{qualifier} {preposition} {params.location.label}{date_part}"
 
 
-def _answer_explanation(params: QueryParams, agg_data: dict[str, object], source: str) -> str:
+def _retrieval_disclosure(
+    params: QueryParams,
+    details: RetrievalDetails,
+    nearest_observation_km: float | None,
+) -> str:
+    if params.location.region_id or details.actual_radius_km is None:
+        return ""
+    if details.radius_expanded:
+        text = (
+            f"Data was retrieved within {details.actual_radius_km:g} km of the query anchor "
+            f"(expanded from {details.requested_radius_km:g} km because no observations "
+            "were available closer)."
+        )
+    else:
+        text = f"Data was retrieved within {details.actual_radius_km:g} km of the query anchor."
+    if nearest_observation_km is not None:
+        text += (
+            f" The nearest observation is {nearest_observation_km:.0f} km from "
+            "the query anchor."
+        )
+    return text
+
+
+def _answer_explanation(
+    params: QueryParams,
+    agg_data: dict[str, object],
+    source: str,
+    retrieval_disclosure: str,
+) -> str:
     selection = (
         f"the {_location_detail(params)} named-region bounds"
         if params.location.region_id
@@ -233,6 +305,8 @@ def _answer_explanation(params: QueryParams, agg_data: dict[str, object], source
         f"QC/data-mode rule, "
         f"and aggregated as: {agg_data.get('aggregation_method', 'documented aggregation')}."
     )
+    if retrieval_disclosure:
+        explanation = f"{explanation} {retrieval_disclosure}"
     if params.parameter.value == "shallow_sst_proxy":
         explanation = f"{explanation} {SHALLOW_PROXY_CAVEAT}"
     return explanation
@@ -379,6 +453,7 @@ def _build_parameter_result(
     params: QueryParams,
     parameter: Parameter,
     source: str,
+    retrieval_details: RetrievalDetails,
 ) -> ParameterResult:
     parameter_params = params.model_copy(update={"parameter": parameter, "parameters": [parameter]})
     qc_result = apply_qc_filter(raw_records, parameter)
@@ -397,6 +472,12 @@ def _build_parameter_result(
     baseline_std = float(baseline["std"]) if baseline else 0.0
     thresholds = repository.get_grade_thresholds()
     grade_result = compute_evidence_grade(qc_result, baseline_n, baseline_std, thresholds)
+    nearest_observation_km: float | None = None
+    if not params.location.region_id and "distance_km" in qc_result.retained:
+        distances = qc_result.retained["distance_km"].astype(float)
+        if not distances.empty and math.isfinite(float(distances.min())):
+            nearest_observation_km = float(distances.min())
+    disclosure = _retrieval_disclosure(params, retrieval_details, nearest_observation_km)
     current_value = compute_current_mean(agg_data, params.query_type)
     anomaly_result = None
     # The Z-score is computed whenever evidence permits and a baseline exists.
@@ -419,6 +500,7 @@ def _build_parameter_result(
         repository.get_manifest_version(),
         artifact_path,
         artifact_sha256,
+        selection_disclosure=disclosure,
     )
     coverage = (
         params.location.label
@@ -473,18 +555,26 @@ def _build_parameter_result(
     )
     return ParameterResult(
         parameter=parameter,
-        summary=_summary(parameter_params, agg_data, grade_result.grade),
+        summary=(
+            f"{_summary(parameter_params, agg_data, grade_result.grade)} {disclosure}"
+            if disclosure
+            else _summary(parameter_params, agg_data, grade_result.grade)
+        ),
         data=agg_data,
         anomaly=_anomaly_model(anomaly_result),
         evidence_grade=grade_result.grade,
         evidence_grade_reasons=grade_result.reasons,
         evidence_panel=evidence_panel,
         data_quality_warning=quality_warning,
-        answer_explanation=_answer_explanation(parameter_params, agg_data, source),
+        answer_explanation=_answer_explanation(parameter_params, agg_data, source, disclosure),
         data_sufficiency=DataSufficiency(
             profile_count=qc_result.valid_profile_count,
             coverage=coverage,
-            coverage_radius_km=None if params.location.region_id else params.location.radius_km,
+            coverage_radius_km=retrieval_details.actual_radius_km,
+            requested_radius_km=retrieval_details.requested_radius_km,
+            actual_radius_km=retrieval_details.actual_radius_km,
+            radius_expanded=retrieval_details.radius_expanded,
+            nearest_observation_km=nearest_observation_km,
         ),
         secondary_views=secondary_views,
         supplementary_data=supplementary_data,
@@ -507,9 +597,8 @@ def chat(request: ChatRequest) -> JSONResponse:
     repository = DataRepository(get_settings().data_dir)
     try:
         retrieval_parameter = Parameter.ALL if len(params.parameters) > 1 else params.parameters[0]
-        raw_records = _apply_query_filters(
-            _retrieve(repository, params, retrieval_parameter),
-            params,
+        raw_records, params, retrieval_details = _retrieve_with_auto_expansion(
+            repository, params, retrieval_parameter
         )
         if raw_records.empty:
             return _no_data_response(repository, params, retrieval_parameter)
@@ -517,7 +606,7 @@ def chat(request: ChatRequest) -> JSONResponse:
         source = f"{repository.get_source_name()} • dataset {version}"
         results = {
             parameter.value: _build_parameter_result(
-                repository, raw_records, params, parameter, source
+                repository, raw_records, params, parameter, source, retrieval_details
             )
             for parameter in params.parameters
         }
@@ -528,6 +617,13 @@ def chat(request: ChatRequest) -> JSONResponse:
                 f"Temperature and salinity were analysed independently for "
                 f"{_location_detail(params)}; switch the chart to inspect either result."
             )
+            disclosure = _retrieval_disclosure(
+                params,
+                retrieval_details,
+                primary.data_sufficiency.nearest_observation_km,
+            )
+            if disclosure:
+                summary = f"{summary} {disclosure}"
         response = ChatResponse(
             interpreted_title=_interpreted_title(params),
             summary=summary,

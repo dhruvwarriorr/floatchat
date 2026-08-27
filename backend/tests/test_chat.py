@@ -29,7 +29,7 @@ def settings(data_dir: Path) -> Settings:
         data_dir=data_dir,
         static_dir=data_dir / "static",
         llm_timeout=0.01,
-        default_radius_km=100,
+        default_radius_km=300,
         grade_thresholds=EvidenceGradeThresholds(),
         cors_origins=("http://test",),
     )
@@ -151,7 +151,8 @@ def test_success_response_contains_complete_trust_contract(
     assert response.status_code == 200
     body = response.json()
     assert body["interpreted_title"] == "Temperature profile near Mumbai coast, Jul 2024"
-    assert "Mumbai coast (19.00°N, 72.80°E, 100 km radius)" in body["summary"]
+    assert "Mumbai coast (19.00°N, 72.80°E, 300 km radius)" in body["summary"]
+    assert "nearest observation is 0 km" in body["summary"]
     assert body["query_type"] == "profile"
     assert body["evidence_grade"] == "Supported"
     assert body["parser_used"] == "rule_based"
@@ -167,6 +168,15 @@ def test_success_response_contains_complete_trust_contract(
         body["supplementary_data"]
     )
     assert body["params"]["location"]["coordinate_precision"] == 2
+    assert body["data_sufficiency"] == {
+        "profile_count": 6,
+        "coverage": "Within 300 km",
+        "coverage_radius_km": 300.0,
+        "requested_radius_km": 300.0,
+        "actual_radius_km": 300.0,
+        "radius_expanded": False,
+        "nearest_observation_km": 0.0,
+    }
     assert body["evidence_panel"]["baseline_month_used"] == 7
     assert body["evidence_panel"]["baseline_grid_cell"] == {
         "south": 18.0,
@@ -302,3 +312,47 @@ def test_no_data_reports_nearest_distance_without_widening_the_result(
     assert error["nearest_available_km"] == pytest.approx(294.8, abs=1)
     assert "within 100 km" in error["message"]
     assert "within 350 km" in error["suggested_query"]
+
+
+def test_implicit_point_query_auto_expands_and_discloses_retrieval_distance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_query_ready_fixture(tmp_path)
+    artifact = tmp_path / "processed" / "argo_profiles.parquet"
+    rows = pd.read_parquet(artifact)
+    rows["longitude"] = 74.0
+    rows.to_parquet(artifact, index=False)
+    monkeypatch.setattr(chat_module, "get_settings", lambda: settings(tmp_path))
+
+    response = asyncio.run(post_chat("Temperature profile at 19N 70E in July 2024"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["params"]["location"]["radius_km"] == 500.0
+    assert body["params"]["location"]["radius_explicit"] is False
+    sufficiency = body["data_sufficiency"]
+    assert sufficiency["requested_radius_km"] == 300.0
+    assert sufficiency["actual_radius_km"] == 500.0
+    assert sufficiency["radius_expanded"] is True
+    assert 400 < sufficiency["nearest_observation_km"] < 500
+    assert "expanded from 300 km" in body["summary"]
+    assert "expanded from 300 km" in body["answer_explanation"]
+    assert "nearest observation" in body["answer_explanation"]
+
+
+def test_explicit_point_radius_is_not_auto_expanded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_query_ready_fixture(tmp_path)
+    artifact = tmp_path / "processed" / "argo_profiles.parquet"
+    rows = pd.read_parquet(artifact)
+    rows["longitude"] = 74.0
+    rows.to_parquet(artifact, index=False)
+    monkeypatch.setattr(chat_module, "get_settings", lambda: settings(tmp_path))
+
+    response = asyncio.run(post_chat("Temperature profile at 19N 70E within 50 km in July 2024"))
+
+    assert response.status_code == 404
+    error = response.json()["error"]
+    assert "within 50 km" in error["message"]
+    assert error["nearest_available_km"] is not None

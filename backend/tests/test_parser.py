@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from datetime import date
 
@@ -7,6 +8,7 @@ import pytest
 from app.models import GeographicBounds, Parameter, ParserUsed, QueryLocation, QueryType
 from app.services.parser import (
     GAZETTEER,
+    LOCATION_ALIASES,
     REGION_NAMES,
     MalformedProviderOutput,
     ProviderError,
@@ -18,6 +20,7 @@ from app.services.parser import (
     parse_llm,
     parse_query,
     parse_rule_based,
+    sanitize_query,
 )
 
 FIXED_TODAY = date(2026, 8, 22)
@@ -73,13 +76,64 @@ def test_deterministic_parser_has_at_least_100_place_aliases() -> None:
     assert len(GAZETTEER) >= 100
 
 
+def test_location_aliases_are_comprehensive_and_canonical() -> None:
+    assert len(LOCATION_ALIASES) >= 30
+    assert all(alias != canonical for alias, canonical in LOCATION_ALIASES.items())
+    assert all(
+        canonical in GAZETTEER or canonical in REGION_NAMES
+        for canonical in LOCATION_ALIASES.values()
+    )
+
+
+@pytest.mark.parametrize(
+    ("misspelling", "expected_label", "expected_latitude", "expected_longitude"),
+    [
+        ("Gujrat", "Gujarat coast (Arabian Sea)", 22.0, 69.0),
+        ("Maharasthra", "Maharashtra coast (Arabian Sea)", 17.5, 73.0),
+        ("Trivandrum", "Thiruvananthapuram coast", 8.52, 76.94),
+        ("Calicat", "Kozhikode coast", 11.26, 75.78),
+    ],
+)
+def test_explicit_location_aliases_resolve_to_canonical_coordinates(
+    misspelling: str,
+    expected_label: str,
+    expected_latitude: float,
+    expected_longitude: float,
+) -> None:
+    parsed = parse_rule_based(f"temperature near {misspelling} in 2024")
+
+    assert parsed.location.label == expected_label
+    assert parsed.location.latitude == expected_latitude
+    assert parsed.location.longitude == expected_longitude
+
+
+@pytest.mark.parametrize(
+    ("misspelling", "expected_label"),
+    [
+        ("Mumbbai", "Mumbai coast"),
+        ("Mahrasthra", "Maharashtra coast (Arabian Sea)"),
+    ],
+)
+def test_unlisted_location_typos_use_safe_fuzzy_matching(
+    misspelling: str, expected_label: str
+) -> None:
+    parsed = parse_rule_based(f"temperature near {misspelling} in 2024")
+
+    assert parsed.location.label == expected_label
+
+
+def test_short_unknown_location_is_not_fuzzy_matched() -> None:
+    with pytest.raises(UnsupportedQuery):
+        parse_rule_based("temperature near god in 2024")
+
+
 @pytest.mark.parametrize(
     ("place", "latitude", "longitude", "label"),
     [
-        ("Gujarat", 22.0, 69.0, "Gujarat coast"),
-        ("Maharashtra", 17.5, 73.0, "Maharashtra coast"),
-        ("Karnataka", 13.5, 74.5, "Karnataka coast"),
-        ("Kerala", 9.5, 76.0, "Kerala coast"),
+        ("Gujarat", 22.0, 69.0, "Gujarat coast (Arabian Sea)"),
+        ("Maharashtra", 17.5, 73.0, "Maharashtra coast (Arabian Sea)"),
+        ("Karnataka", 13.5, 74.5, "Karnataka coast (Arabian Sea)"),
+        ("Kerala", 9.5, 76.0, "Kerala coast (Arabian Sea)"),
         ("Kandla", 23.03, 70.22, "Kandla coast"),
         ("Jamnagar", 22.47, 70.07, "Jamnagar coast"),
         ("Okha", 22.47, 69.07, "Okha coast"),
@@ -189,7 +243,7 @@ def test_point_intent_city_wins_over_cooccurring_region() -> None:
             "what's the ocean like near Kerala in summer",
             QueryType.PROFILE,
             [Parameter.TEMPERATURE, Parameter.SALINITY],
-            "Kerala coast",
+            "Kerala coast (Arabian Sea)",
             False,
         ),
         (
@@ -293,7 +347,16 @@ def test_rule_parser_preserves_sst_proxy_in_multi_parameter_query() -> None:
     ],
 )
 def test_radius_variants_preserve_the_explicit_value(query: str) -> None:
-    assert parse_rule_based(query).location.radius_km == 50
+    parsed = parse_rule_based(query)
+    assert parsed.location.radius_km == 50
+    assert parsed.location.radius_explicit is True
+
+
+def test_point_query_uses_the_new_default_radius() -> None:
+    parsed = parse_rule_based("temperature near Mumbai in 2024")
+
+    assert parsed.location.radius_km == 300
+    assert parsed.location.radius_explicit is False
 
 
 def test_out_of_policy_radius_is_rejected_instead_of_clamped() -> None:
@@ -310,6 +373,96 @@ class _FakeResponse:
 
     def json(self) -> dict[str, object]:
         return self._payload
+
+
+def test_query_sanitizer_runs_before_structured_planner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sanitize_query.cache_clear()  # type: ignore[attr-defined]
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("FLOATCHAT_LLM_SANITIZER_MODEL", "gemini-2.5-flash-lite")
+    calls: list[dict[str, object]] = []
+
+    def fake_post(url: str, **kwargs: object) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
+        if len(calls) == 1:
+            return _FakeResponse({"output_text": "temperature near Gujarat in 2024"})
+        return _FakeResponse(
+            {
+                "output_text": json.dumps(
+                    {
+                        "query_type": "profile",
+                        "parameters": ["temperature"],
+                        "lat": 22.0,
+                        "lon": 69.0,
+                        "region_id": None,
+                        "location_label": "Gujarat coast",
+                        "date_from": "2024-01-01",
+                        "date_to": "2024-12-31",
+                        "radius_km": 300,
+                        "include_anomaly": False,
+                    }
+                )
+            }
+        )
+
+    monkeypatch.setattr("app.services.parser.httpx.post", fake_post)
+    parsed = parse_query("temapeture near Gujrat in 24")
+
+    assert parsed.parser_used is ParserUsed.LLM
+    assert parsed.location.label == "Gujarat coast (Arabian Sea)"
+    assert len(calls) == 2
+    sanitizer_request = calls[0]["json"]
+    planner_request = calls[1]["json"]
+    assert isinstance(sanitizer_request, dict)
+    assert sanitizer_request["generationConfig"]["temperature"] == 0
+    assert "responseJsonSchema" not in sanitizer_request["generationConfig"]
+    assert calls[0]["timeout"] <= 3
+    assert isinstance(planner_request, dict)
+    assert planner_request["contents"][0]["parts"][0]["text"] == (
+        "temperature near Gujarat in 2024"
+    )
+
+
+def test_query_sanitizer_cache_normalizes_the_cache_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sanitize_query.cache_clear()  # type: ignore[attr-defined]
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("FLOATCHAT_LLM_SANITIZER_MODEL", "gemini-2.5-flash-lite")
+    calls = 0
+
+    def fake_post(*_args: object, **_kwargs: object) -> _FakeResponse:
+        nonlocal calls
+        calls += 1
+        return _FakeResponse({"output_text": "temperature near Gujarat"})
+
+    monkeypatch.setattr("app.services.parser.httpx.post", fake_post)
+    first = sanitize_query("  Temperature near Gujrat  ")
+    second = sanitize_query("temperature near gujrat")
+
+    assert first == second == "temperature near Gujarat"
+    assert calls == 1
+
+
+def test_sanitizer_timeout_falls_back_to_manual_typo_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sanitize_query.cache_clear()  # type: ignore[attr-defined]
+    monkeypatch.setenv("FLOATCHAT_LLM_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+
+    def timeout(*_args: object, **_kwargs: object) -> object:
+        raise httpx.TimeoutException("slow")
+
+    monkeypatch.setattr("app.services.parser.httpx.post", timeout)
+    parsed = parse_query("temperature near Mumbbai in 2024")
+
+    assert parsed.parser_used is ParserUsed.RULE_BASED
+    assert parsed.location.label == "Mumbai coast"
 
 
 def test_gemini_structured_output_is_validated(

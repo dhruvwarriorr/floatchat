@@ -23,6 +23,7 @@ def compose_evidence_panel(
     manifest_version: str,
     artifact_path: str | None = None,
     artifact_sha256: str | None = None,
+    selection_disclosure: str | None = None,
 ) -> EvidencePanel:
     unit = str(agg_data.get("unit", ""))
     current_value = agg_data.get("current_value")
@@ -87,6 +88,8 @@ def compose_evidence_panel(
             f"{coordinates}; {params.date_from} through {params.date_to}{recurring_filter}. "
             f"The anchor is {anchor_basis}; it marks the search centre, not an observation"
         )
+    if selection_disclosure:
+        selection_summary = f"{selection_summary}. {selection_disclosure}"
 
     trace = agg_data.get("trace") if isinstance(agg_data.get("trace"), dict) else {}
     bins = agg_data.get("bins") if isinstance(agg_data.get("bins"), list) else []
