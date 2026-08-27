@@ -17,6 +17,18 @@ def disable_optional_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FLOATCHAT_LLM_API_KEY", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def disable_live_source_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the live-source fallback off unless a test explicitly enables it.
+
+    Without this, a developer's local .env (e.g. FLOATCHAT_LIVE_SOURCE_ENABLED=true
+    for real manual testing) leaks into every no_data test via python-dotenv,
+    making them issue real network calls to the public Argovis API and fail
+    unpredictably. Tests must never depend on local .env state.
+    """
+    monkeypatch.delenv("FLOATCHAT_LIVE_SOURCE_ENABLED", raising=False)
+
+
 async def post_chat(query: str) -> Response:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -356,3 +368,80 @@ def test_explicit_point_radius_is_not_auto_expanded(
     error = response.json()["error"]
     assert "within 50 km" in error["message"]
     assert error["nearest_available_km"] is not None
+
+
+def test_no_data_behavior_is_unchanged_when_live_source_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression guard: the live-source addition must be inert by default.
+
+    Runs the exact scenario from ``test_no_matching_location_returns_no_data``
+    with the flag unset, then again with it explicitly "false", and asserts
+    both responses are byte-for-byte identical to each other and to the
+    original no_data contract -- proving the additive code path in
+    ``chat.py`` changes nothing unless explicitly enabled.
+    """
+    write_query_ready_fixture(tmp_path)
+    monkeypatch.setattr(chat_module, "get_settings", lambda: settings(tmp_path))
+
+    monkeypatch.delenv("FLOATCHAT_LIVE_SOURCE_ENABLED", raising=False)
+    response_unset = asyncio.run(post_chat("Temperature profile near Chennai in July 2024"))
+
+    monkeypatch.setenv("FLOATCHAT_LIVE_SOURCE_ENABLED", "false")
+    response_disabled = asyncio.run(post_chat("Temperature profile near Chennai in July 2024"))
+
+    assert response_unset.status_code == response_disabled.status_code == 404
+    assert response_unset.json() == response_disabled.json()
+    assert response_unset.json()["error"]["type"] == "no_data"
+    assert "live" not in response_unset.text.lower()
+
+
+def _live_argovis_document() -> dict:
+    """A minimal, realistically-shaped Argovis /argo document.
+
+    Mirrors the exact structure captured from the live API (see
+    live_source.py's module docstring): data_info is
+    [keys, ["units","data_keys_mode"], [[unit, mode], ...]], data is a
+    column-major matrix aligned to keys.
+    """
+    return {
+        "_id": "7901125_002",
+        "geolocation": {"type": "Point", "coordinates": [80.27, 13.08]},
+        "timestamp": "2024-07-15T14:02:01.999Z",
+        "cycle_number": 2,
+        "geolocation_argoqc": 1,
+        "data_info": [
+            ["pressure", "temperature", "salinity", "temperature_argoqc", "salinity_argoqc"],
+            ["units", "data_keys_mode"],
+            [["decibar", "D"], ["degree_Celsius", "D"], ["psu", "D"], [None, None], [None, None]],
+        ],
+        "data": [[5.0, 50.0], [29.5, 28.7], [34.9, 35.0], [1, 1], [1, 1]],
+    }
+
+
+def test_live_source_fills_a_local_no_data_gap_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The enabled path must still work after main's auto-expansion retrieval.
+
+    This composes two independently-built no-data recoveries: local radius
+    auto-expansion (tried first, still empty here) and the live-source
+    fallback (tried second). Only the network call is mocked; retrieval, QC,
+    aggregation, and evidence grading all run for real against the live-shaped
+    frame, proving the fallback still reaches the existing pipeline intact
+    after the merge restructured chat.py around it.
+    """
+    write_query_ready_fixture(tmp_path)
+    monkeypatch.setattr(chat_module, "get_settings", lambda: settings(tmp_path))
+    monkeypatch.setenv("FLOATCHAT_LIVE_SOURCE_ENABLED", "true")
+    monkeypatch.setattr(
+        chat_module, "fetch_argo_profiles", lambda *_a, **_k: [_live_argovis_document()]
+    )
+
+    response = asyncio.run(post_chat("Temperature profile near Chennai in July 2024"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["live_source_used"] is True
+    assert body["live_source_caveat"] and "Argovis" in body["live_source_caveat"]
+    assert body["data"]["bins"]
