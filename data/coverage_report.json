@@ -1,6 +1,6 @@
 {
   "status": "generated_policy_implemented_not_scientifically_validated",
-  "generated_at": "2026-08-22T06:47:43.072614+00:00",
+  "generated_at": "2026-08-27T08:59:33.568837+00:00",
   "dataset_version": "argo-arabian-sea-2026-08-21-v1",
   "production_period": [
     2000,
@@ -12,46 +12,46 @@
   ],
   "qc": {
     "temperature": {
-      "raw_observations": 14413526,
-      "qc_passed_observations": 12417620,
-      "qc_pass_rate": 0.8615254865464564,
-      "qc_passed_profiles": 62916,
-      "distinct_floats": 439
+      "raw_observations": 20154334,
+      "qc_passed_observations": 17438239,
+      "qc_pass_rate": 0.8652351896123186,
+      "qc_passed_profiles": 94808,
+      "distinct_floats": 651
     },
     "salinity": {
-      "raw_observations": 14413526,
-      "qc_passed_observations": 10333622,
-      "qc_pass_rate": 0.7169392139022749,
-      "qc_passed_profiles": 52311,
-      "distinct_floats": 418
+      "raw_observations": 20154334,
+      "qc_passed_observations": 14869091,
+      "qc_pass_rate": 0.7377614660945879,
+      "qc_passed_profiles": 79260,
+      "distinct_floats": 623
     }
   },
-  "production_baseline_rows": 9031,
+  "production_baseline_rows": 13593,
   "production_baseline_n_distribution": {
     "min": 1.0,
-    "p10": 6.0,
+    "p10": 5.0,
     "median": 31.0,
     "p90": 90.0,
-    "max": 5543.0
+    "max": 8468.0
   },
   "production_distinct_float_distribution": {
     "min": 1.0,
-    "p10": 3.0,
+    "p10": 2.0,
     "median": 10.0,
     "p90": 21.0,
-    "max": 385.0
+    "max": 581.0
   },
   "named_region_rows": {
-    "bay-of-bengal": 0,
+    "bay-of-bengal": 72,
     "arabian-sea": 72,
     "lakshadweep-sea": 72,
-    "andaman-sea": 0,
+    "andaman-sea": 72,
     "equatorial-indian": 72
   },
   "pinned_selection_coverage": {
     "mumbai_50km_july_2024_temperature_profiles": 0,
     "mumbai_50km_2015_2024_shallow_temperature_profiles": 0,
-    "bay_of_bengal_2023_upper_100_salinity_profiles": 0,
+    "bay_of_bengal_2023_upper_100_salinity_profiles": 516,
     "all_pinned_selections_present": false
   },
   "implemented_thresholds_from_build_specification": {

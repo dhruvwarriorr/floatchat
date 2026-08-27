@@ -96,10 +96,66 @@
         "sha256": "30b6ba4f4befa503120db42222fee9f560ab0b19e4f98e63065b814979c1f608",
         "size_bytes": 278003808,
         "input_rows": 2663454
+      },
+      {
+        "name": "ArgoFloats_BOB_Feb to Aug 2026.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "b897d91832a62c29dbc2eecf5071af7c285a02825598cd58800ef9b4961af8e3",
+        "size_bytes": 11273166,
+        "input_rows": 114202
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2000 to 2004.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "6a3082dcd545e3c909bc8ffd31ac20f3874adc419007714b506aeb8d5ffc2dd2",
+        "size_bytes": 4249982,
+        "input_rows": 46200
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2005 to 2009.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "ee497824404a10773abdaab6a5d191a4e164f72c29a7dc77b407c9744690fe85",
+        "size_bytes": 27074449,
+        "input_rows": 290898
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2010 to Dec 2014.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "155780d81392a658dbe0ccc5e257008ec52b9b10d01e748e9671ed4dde7b0dbf",
+        "size_bytes": 167832442,
+        "input_rows": 1802868
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2015 to Dec 2019.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "8046ccabe6fd178f74c272143f09c43ffc4921c9b639a5b1e90b05db4a6b199a",
+        "size_bytes": 246893827,
+        "input_rows": 2583043
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2020 to Dec 2025.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "69cff25b6a9f36a240e1cbbd64749ad536d1ac0b07f7bbcc0a9639193a678862",
+        "size_bytes": 87209697,
+        "input_rows": 891443
+      },
+      {
+        "name": "ArgoFloats_BOB_Jan 2026.csv",
+        "origin": "INCOIS ARGO export supplied to project",
+        "source_url": "https://incois.gov.in/argo/",
+        "sha256": "86032ce5348d1ca51e496c955d95226f3e1556afdc91486cb979aab061806d88",
+        "size_bytes": 1791013,
+        "input_rows": 18287
       }
     ]
   },
-  "created_at": "2026-08-22T06:47:43.074625+00:00",
+  "created_at": "2026-08-27T08:59:33.575865+00:00",
   "build_command": "python scripts/preprocess_argo.py && python scripts/build_baselines.py",
   "qc_policy": {
     "version": "scientific-policy-0.2",
@@ -124,16 +180,16 @@
     "validation_note": "Thresholds are implemented from the supplied build specification and remain subject to external scientific validation."
   },
   "coverage": {
-    "input_rows": 14595054,
-    "processed_rows": 14413526,
+    "input_rows": 20341995,
+    "processed_rows": 20154334,
     "date_min": "2001-11-07T23:14:00+00:00",
-    "date_max": "2026-08-21T23:03:20+00:00",
+    "date_max": "2026-08-26T16:21:13+00:00",
     "latitude_min": 5.0,
     "latitude_max": 26.168,
     "longitude_min": 45.002545,
-    "longitude_max": 77.9869995117188,
-    "total_profiles": 77172,
-    "total_floats": 531,
+    "longitude_max": 97.74200000000002,
+    "total_profiles": 114501,
+    "total_floats": 784,
     "coverage_note": "Coverage describes the installed local exports only. Locations outside these bounds return no_data; the files are not a complete global Indian Ocean collection.",
     "production_baseline_period": [
       2000,
@@ -147,7 +203,7 @@
     "pinned_selection_coverage": {
       "mumbai_50km_july_2024_temperature_profiles": 0,
       "mumbai_50km_2015_2024_shallow_temperature_profiles": 0,
-      "bay_of_bengal_2023_upper_100_salinity_profiles": 0,
+      "bay_of_bengal_2023_upper_100_salinity_profiles": 516,
       "all_pinned_selections_present": false
     }
   },
@@ -155,23 +211,23 @@
     {
       "path": "processed/argo_profiles.parquet",
       "kind": "profiles",
-      "sha256": "450f592a6d2e61fd13e61c1d0fcb6bf5f0fa763760ce67d07b2a3db814b909fd",
-      "size_bytes": 173438173,
-      "row_count": 14413526
+      "sha256": "b7c7e1a662c6bd0f5b280d3620daff66848db476a2aaa34f549e33a71e0837f2",
+      "size_bytes": 240086241,
+      "row_count": 20154334
     },
     {
       "path": "baselines/production/baseline.parquet",
       "kind": "production_baseline",
-      "sha256": "c5ba327bacf0201b7c8af8e514cd32bc751e416f1e0d7eb85a5451cd94e7ede2",
-      "size_bytes": 196802,
-      "row_count": 9031
+      "sha256": "2ea18ce3020927fa71d2c79358e1233be3a33eccc4e3a091282093e811cf7ec3",
+      "size_bytes": 287515,
+      "row_count": 13593
     },
     {
       "path": "baselines/validation/baseline.parquet",
       "kind": "validation_baseline",
-      "sha256": "644b7e8952541c6f758b9c5ed51fda19ed0bc7814ac4fe2cea99de9f4b941c43",
-      "size_bytes": 127492,
-      "row_count": 6642
+      "sha256": "f29afd9c2c34ad55eac965e435d5f96d5f4d08de50476d31e0a0f7274ab7fb26",
+      "size_bytes": 185995,
+      "row_count": 9891
     }
   ]
 }
