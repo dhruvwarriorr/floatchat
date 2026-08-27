@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.services.parser_policy import DEFAULT_RADIUS_KM, MAX_RADIUS_KM, MIN_RADIUS_KM
+
 
 class QueryType(StrEnum):
     PROFILE = "profile"
@@ -22,6 +24,14 @@ class Parameter(StrEnum):
 class ParserUsed(StrEnum):
     LLM = "llm"
     RULE_BASED = "rule_based"
+
+
+class Season(StrEnum):
+    MONSOON = "monsoon"
+    POST_MONSOON = "post-monsoon"
+    PRE_MONSOON = "pre-monsoon"
+    SUMMER = "summer"
+    WINTER = "winter"
 
 
 class Confidence(StrEnum):
@@ -80,14 +90,22 @@ class QueryLocation(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     region_id: str | None = None
-    radius_km: float = Field(default=100.0, ge=1.0, le=2000.0)
+    radius_km: float = Field(default=DEFAULT_RADIUS_KM, ge=MIN_RADIUS_KM, le=MAX_RADIUS_KM)
+    radius_explicit: bool = False
     bounds: GeographicBounds | None = None
+    coordinate_precision: int = Field(default=2, ge=0, le=4)
 
     @model_validator(mode="after")
     def require_coordinates_or_region(self) -> QueryLocation:
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("location coordinates must be supplied as a complete pair")
         has_coordinates = self.latitude is not None and self.longitude is not None
-        if not has_coordinates and not self.region_id:
-            raise ValueError("location requires coordinates or a named region")
+        if not has_coordinates:
+            raise ValueError("location requires a display centre coordinate pair")
+        if self.region_id and self.bounds is None:
+            raise ValueError("named-region locations require canonical bounds")
+        if not self.region_id and self.bounds is not None:
+            raise ValueError("point locations cannot carry regional bounds")
         return self
 
 
@@ -99,6 +117,8 @@ class QueryParams(BaseModel):
     year_start: int | None = Field(default=None, ge=2000, le=2100)
     year_end: int | None = Field(default=None, ge=2000, le=2100)
     month: int | None = Field(default=None, ge=1, le=12)
+    calendar_month: int | None = Field(default=None, ge=1, le=12)
+    season: Season | None = None
     anomaly_requested: bool = False
     date_from: str | None = None
     date_to: str | None = None
@@ -121,6 +141,10 @@ class QueryParams(BaseModel):
             raise ValueError("year_start cannot be later than year_end")
         if self.date_from and self.date_to and self.date_from > self.date_to:
             raise ValueError("date_from cannot be later than date_to")
+        if self.calendar_month is not None and self.season is not None:
+            raise ValueError("calendar_month and season cannot both be set")
+        if self.month is not None and self.calendar_month is not None:
+            raise ValueError("month and calendar_month have different semantics and cannot overlap")
         if self.include_anomaly != self.anomaly_requested:
             enabled = self.include_anomaly or self.anomaly_requested
             self.include_anomaly = enabled
@@ -143,6 +167,26 @@ class DataSufficiency(BaseModel):
     profile_count: int = Field(ge=0)
     coverage: str
     coverage_radius_km: float | None = Field(default=None, ge=0)
+    requested_radius_km: float | None = Field(default=None, ge=0)
+    actual_radius_km: float | None = Field(default=None, ge=0)
+    radius_expanded: bool = False
+    nearest_observation_km: float | None = Field(default=None, ge=0)
+
+
+class EvidenceCheck(BaseModel):
+    key: str
+    label: str
+    value: int | float | str | None = None
+    threshold: int | float | str | None = None
+    passed: bool | None = None
+    detail: str
+
+
+class FloatPosition(BaseModel):
+    float_id: str
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    profile_count: int = Field(ge=1)
 
 
 class EvidencePanel(BaseModel):
@@ -162,12 +206,20 @@ class EvidencePanel(BaseModel):
     source_version: str | None = None
     selection_summary: str | None = None
     aggregation_method: str | None = None
+    depth_bins_used: list[str] = Field(default_factory=list)
+    aggregation_counts_per_bin: dict[str, int] = Field(default_factory=dict)
+    baseline_grid_cell: GeographicBounds | None = None
+    baseline_selection_id: str | None = None
+    baseline_month_used: int | None = Field(default=None, ge=1, le=12)
+    baseline_distinct_float_count: int | None = Field(default=None, ge=0)
+    evidence_checks: list[EvidenceCheck] = Field(default_factory=list)
     proxy_caveat: str | None = None
     artifact_path: str | None = None
     artifact_sha256: str | None = None
     contributing_profile_ids: list[str] = Field(default_factory=list)
     contributing_float_ids: list[str] = Field(default_factory=list)
     source_record_sample: list[str] = Field(default_factory=list)
+    float_positions: list[FloatPosition] = Field(default_factory=list)
     trace_sample_truncated: bool = False
 
 
@@ -198,6 +250,7 @@ class ParameterResult(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    interpreted_title: str
     summary: str
     query_type: QueryType
     params: QueryParams
@@ -216,10 +269,30 @@ class ChatResponse(BaseModel):
     supplementary_data: dict[str, Any] = Field(default_factory=dict)
 
 
+class ErrorQueryContext(BaseModel):
+    location_label: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    region_id: str | None = None
+    radius_km: float = Field(ge=1, le=2000)
+    date_from: str
+    date_to: str
+    calendar_month: int | None = Field(default=None, ge=1, le=12)
+    season: Season | None = None
+    parameters: list[Parameter] = Field(min_length=1)
+    query_type: QueryType
+
+
 class ErrorDetail(BaseModel):
     type: ErrorType
     message: str
     suggestion: str | None = None
+    understanding: str | None = None
+    understood: ErrorQueryContext | None = None
+    searched: str | None = None
+    records_found: int | None = Field(default=None, ge=0)
+    nearest_available_km: float | None = Field(default=None, ge=0)
+    suggested_query: str | None = None
 
 
 class ErrorResponse(BaseModel):

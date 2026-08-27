@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from app.models import Parameter
-from app.services.data import DataRepository, haversine_km
+from app.services.data import DataRepository, apply_recurring_period_filter, haversine_km
 
 
 def write_dataset(data_dir: Path) -> None:
@@ -116,7 +116,8 @@ def test_repository_filters_space_time_and_parameter(tmp_path: Path) -> None:
 
     assert records["profile_id"].tolist() == ["1:1"]
     assert "temp_adjusted" in records
-    assert "psal_adjusted" not in records
+    assert "psal_adjusted" in records
+    assert "psal" not in records
     assert records["distance_km"].iloc[0] == pytest.approx(0)
 
 
@@ -124,3 +125,30 @@ def test_readiness_checks_profile_schema_and_production_baseline(tmp_path: Path)
     write_dataset(tmp_path)
 
     assert DataRepository(tmp_path).readiness()[0] is True
+
+
+def test_recurring_calendar_month_filter_runs_before_qc() -> None:
+    frame = pd.DataFrame(
+        {
+            "time": pd.to_datetime(["2023-06-01", "2023-07-01", "2024-06-01"], utc=True),
+            "calendar_month": [6, 7, 6],
+            "profile_id": ["a", "b", "c"],
+        }
+    )
+
+    filtered = apply_recurring_period_filter(frame, calendar_month=6)
+
+    assert filtered["profile_id"].tolist() == ["a", "c"]
+
+
+def test_recurring_winter_filter_keeps_december_through_february() -> None:
+    frame = pd.DataFrame(
+        {
+            "calendar_month": [1, 2, 3, 11, 12],
+            "profile_id": ["jan", "feb", "mar", "nov", "dec"],
+        }
+    )
+
+    filtered = apply_recurring_period_filter(frame, season="winter")
+
+    assert filtered["profile_id"].tolist() == ["jan", "feb", "dec"]

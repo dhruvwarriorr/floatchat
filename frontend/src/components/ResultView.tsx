@@ -1,4 +1,4 @@
-import { CalendarRange, ChartSpline, Lightbulb, MapPinned, Thermometer } from "lucide-react";
+import { CalendarRange, ChartSpline, CircleDashed, Lightbulb, LocateFixed, MapPinned, Thermometer } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { OceanResponse } from "../types/ocean";
 import { DataSufficiency } from "./DataSufficiency";
@@ -12,14 +12,14 @@ const OceanMap = lazy(() => import("./OceanMap").then((module) => ({ default: mo
 const SecondaryCharts = lazy(() => import("./SecondaryCharts").then((module) => ({ default: module.SecondaryCharts })));
 const SupplementaryCharts = lazy(() => import("./SupplementaryCharts").then((module) => ({ default: module.SupplementaryCharts })));
 
-const metadataIcons = [MapPinned, CalendarRange, Thermometer, ChartSpline];
-
 export function ResultView({ response }: { response: OceanResponse }) {
   const metadata = [
-    { label: response.metadata.coordinates === "Regional selection" ? "Region" : "Location", value: response.metadata.location, detail: response.metadata.coordinates },
-    { label: "Period", value: response.metadata.period },
-    { label: "Parameter", value: response.metadata.parameter },
-    { label: "Result type", value: response.metadata.resultType },
+    { icon: MapPinned, label: response.map.region ? "Region" : "Location", value: response.metadata.location, detail: response.metadata.coordinates },
+    { icon: CircleDashed, label: "Search area", value: response.metadata.searchArea },
+    { icon: CalendarRange, label: "Period", value: response.metadata.period },
+    { icon: Thermometer, label: "Parameter", value: response.metadata.parameter },
+    { icon: ChartSpline, label: "Result type", value: response.metadata.resultType },
+    ...(response.metadata.nearestObservation ? [{ icon: LocateFixed, label: "Nearest observation", value: response.metadata.nearestObservation }] : []),
   ];
 
   return (
@@ -33,8 +33,7 @@ export function ResultView({ response }: { response: OceanResponse }) {
       </div>
 
       <dl className="metadata-grid">
-        {metadata.map(({ value, label, detail }, index) => {
-          const Icon = metadataIcons[index];
+        {metadata.map(({ icon: Icon, value, label, detail }) => {
           return <div key={label}><span><Icon size={15} aria-hidden="true" /></span><dt>{label}</dt><dd>{value}</dd>{detail && <small>{detail}</small>}</div>;
         })}
       </dl>
@@ -64,9 +63,10 @@ export function ResultView({ response }: { response: OceanResponse }) {
           <Suspense fallback={<div className="visualization-loading">Preparing map…</div>}>
             <OceanMap context={response.map} />
           </Suspense>
-          <StatusCard response={response} />
         </aside>
       </div>
+
+      <StatusCard response={response} />
 
       <DataSufficiency response={response} />
 

@@ -7,8 +7,9 @@ import pandas as pd
 from app.models import Parameter
 
 QC_RULE = (
-    'position_qc="1"; data_mode in {"A","D"}; selected adjusted QC="1"; '
-    "selected adjusted value present"
+    "Only profiles with a valid recorded position, adjusted or delayed-mode data, "
+    "a good quality flag for the selected measurement, and an available adjusted "
+    "value were included"
 )
 
 

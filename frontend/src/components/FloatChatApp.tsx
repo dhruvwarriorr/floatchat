@@ -1,21 +1,18 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { adaptApiResponse } from "../api/adapter";
-import { isErrorResponse, sendChatQuery } from "../api/chatApi";
+import { isErrorResponse, sendChatQuery, type ChatApiError } from "../api/chatApi";
 import type { OceanResponse } from "../types/ocean";
 import { ErrorState } from "./ErrorState";
 import { Header } from "./Header";
 import { LoadingSequence } from "./LoadingSequence";
 import { QueryComposer } from "./QueryComposer";
 import { ResultView } from "./ResultView";
+import { ResultErrorBoundary } from "./ResultErrorBoundary";
 
 const stages = ["Ask", "Interpret", "Analyse", "Explain"];
 type ViewState = "idle" | "loading" | "success" | "error";
-interface ErrorInfo {
-  type: string;
-  message: string;
-  suggestion: string | null;
-}
+type ErrorInfo = ChatApiError["error"];
 
 export function FloatChatApp() {
   const [query, setQuery] = useState("");
@@ -72,8 +69,8 @@ export function FloatChatApp() {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         setErrorInfo({
           type: "general_error",
-          message: "The request was interrupted before an answer was available.",
-          suggestion: "Please try again.",
+          message: "The response could not be prepared for display safely.",
+          suggestion: "Please try again or ask a more specific question.",
         });
         setView("error");
       }
@@ -147,7 +144,11 @@ export function FloatChatApp() {
 
       <div className="output-anchor" ref={outputRef}>
         {view === "loading" && <LoadingSequence activeStep={activeStep} />}
-        {view === "success" && response && <ResultView response={response} />}
+        {view === "success" && response && (
+          <ResultErrorBoundary key={`${response.interpretedQuery}:${response.metadata.period}`}>
+            <ResultView response={response} />
+          </ResultErrorBoundary>
+        )}
         {view === "error" && <ErrorState errorInfo={errorInfo} />}
       </div>
 

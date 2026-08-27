@@ -47,13 +47,7 @@ QUERIES = {
 
 async def capture(data_dir: Path, output_dir: Path) -> None:
     os.environ["FLOATCHAT_DATA_DIR"] = str(data_dir)
-    for key in (
-        "GEMINI_API_KEY",
-        "FLOATCHAT_LLM_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-    ):
-        os.environ[key] = ""
+    os.environ["FLOATCHAT_LLM_API_KEY"] = ""
     sys.path.insert(0, str(ROOT / "backend"))
     from app.config import get_settings
     from app.main import create_app

@@ -23,6 +23,7 @@ def compose_evidence_panel(
     manifest_version: str,
     artifact_path: str | None = None,
     artifact_sha256: str | None = None,
+    selection_disclosure: str | None = None,
 ) -> EvidencePanel:
     unit = str(agg_data.get("unit", ""))
     current_value = agg_data.get("current_value")
@@ -31,9 +32,11 @@ def compose_evidence_panel(
         if current_value is not None
         else "; no QC-passed aggregate could be computed"
     )
+    profile_word = "profile" if qc_result.valid_profile_count == 1 else "profiles"
+    float_word = "float" if qc_result.distinct_float_count == 1 else "floats"
     current_summary = (
-        f"{qc_result.valid_profile_count} QC-passed profiles from "
-        f"{qc_result.distinct_float_count} floats{value_summary}"
+        f"{qc_result.valid_profile_count} QC-passed {profile_word} from "
+        f"{qc_result.distinct_float_count} {float_word}{value_summary}"
     )
 
     baseline_summary = None
@@ -55,17 +58,72 @@ def compose_evidence_panel(
     if anomaly_result is None and params.include_anomaly:
         score_summary = f"No z-score emitted; evidence grade is {grade_result.grade.value}."
 
+    recurring_filter = ""
+    if params.calendar_month:
+        recurring_filter = f"; calendar month {params.calendar_month} only"
+    elif params.season:
+        recurring_filter = f"; {params.season.value} months only"
     if params.location.region_id:
         selection_summary = (
-            f"{params.location.label} region; {params.date_from} through {params.date_to}"
+            f"{params.location.label} region centred at "
+            f"{params.location.latitude:.2f}°, {params.location.longitude:.2f}°; "
+            f"{params.date_from} through {params.date_to}{recurring_filter}"
         )
     else:
-        selection_summary = (
-            f"Within {params.location.radius_km:g} km of {params.location.label}; "
-            f"{params.date_from} through {params.date_to}"
+        latitude = params.location.latitude or 0.0
+        longitude = params.location.longitude or 0.0
+        coordinates = (
+            f"{abs(latitude):.{params.location.coordinate_precision}f}°"
+            f"{'N' if latitude >= 0 else 'S'}, "
+            f"{abs(longitude):.{params.location.coordinate_precision}f}°"
+            f"{'E' if longitude >= 0 else 'W'}"
         )
+        anchor_basis = (
+            "the user's requested coordinate"
+            if "°" in params.location.label
+            else "the application gazetteer's sea-facing search coordinate"
+        )
+        selection_summary = (
+            f"Within {params.location.radius_km:g} km of {params.location.label} at "
+            f"{coordinates}; {params.date_from} through {params.date_to}{recurring_filter}. "
+            f"The anchor is {anchor_basis}; it marks the search centre, not an observation"
+        )
+    if selection_disclosure:
+        selection_summary = f"{selection_summary}. {selection_disclosure}"
 
     trace = agg_data.get("trace") if isinstance(agg_data.get("trace"), dict) else {}
+    bins = agg_data.get("bins") if isinstance(agg_data.get("bins"), list) else []
+    depth_bins_used = [str(item["depth_bin"]) for item in bins if "depth_bin" in item]
+    counts_per_bin = {
+        str(item["depth_bin"]): int(item.get("profile_count", 0))
+        for item in bins
+        if "depth_bin" in item
+    }
+    float_positions: list[dict[str, object]] = []
+    retained = qc_result.retained
+    if not retained.empty and {"platform_number", "profile_id", "latitude", "longitude"} <= set(
+        retained.columns
+    ):
+        grouped_positions = (
+            retained.dropna(subset=["latitude", "longitude"])
+            .groupby("platform_number", as_index=False)
+            .agg(
+                latitude=("latitude", "median"),
+                longitude=("longitude", "median"),
+                profile_count=("profile_id", "nunique"),
+            )
+            .sort_values(["profile_count", "platform_number"], ascending=[False, True])
+            .head(50)
+        )
+        float_positions = [
+            {
+                "float_id": str(row.platform_number),
+                "latitude": float(row.latitude),
+                "longitude": float(row.longitude),
+                "profile_count": int(row.profile_count),
+            }
+            for row in grouped_positions.itertuples(index=False)
+        ]
     return EvidencePanel(
         raw_profile_count=qc_result.raw_profile_count,
         valid_profile_count=qc_result.valid_profile_count,
@@ -83,6 +141,25 @@ def compose_evidence_panel(
         source_version=manifest_version,
         selection_summary=selection_summary,
         aggregation_method=str(agg_data.get("aggregation_method", "")),
+        depth_bins_used=depth_bins_used,
+        aggregation_counts_per_bin=counts_per_bin,
+        baseline_grid_cell=baseline.get("grid_bounds") if baseline else None,
+        baseline_selection_id=str(baseline["selection_id"]) if baseline else None,
+        baseline_month_used=int(baseline["calendar_month"]) if baseline else None,
+        baseline_distinct_float_count=(
+            int(baseline.get("distinct_float_count", 0)) if baseline else None
+        ),
+        evidence_checks=[
+            {
+                "key": check.key,
+                "label": check.label,
+                "value": check.value,
+                "threshold": check.threshold,
+                "passed": check.passed,
+                "detail": check.detail,
+            }
+            for check in grade_result.checks
+        ],
         proxy_caveat=(
             SHALLOW_PROXY_CAVEAT if params.parameter is Parameter.SHALLOW_SST_PROXY else None
         ),
@@ -91,5 +168,6 @@ def compose_evidence_panel(
         contributing_profile_ids=[str(value) for value in trace.get("profile_ids", [])],
         contributing_float_ids=[str(value) for value in trace.get("float_ids", [])],
         source_record_sample=[str(value) for value in trace.get("source_records", [])],
+        float_positions=float_positions,
         trace_sample_truncated=bool(trace.get("truncated", False)),
     )

@@ -1,6 +1,7 @@
 import type { ChatApiResponse } from "./chatApi";
 import type {
   Confidence,
+  DataSufficiencyDetails,
   DataPoint,
   EvidenceGrade,
   MapContext,
@@ -9,6 +10,7 @@ import type {
   ResponseKind,
   StatusDetails,
 } from "../types/ocean";
+import { formatCoordinates } from "../utils/geo";
 
 // Region rectangles are taken from the backend `location.bounds` (the scientific
 // selection source of truth) so the map cannot drift from retrieval. Only the
@@ -51,10 +53,8 @@ function confidenceForGrade(grade: EvidenceGrade): Confidence {
 }
 
 function coordinates(response: ChatApiResponse): string {
-  const { latitude, longitude, region_id } = response.params.location;
-  if (region_id) return "Named regional selection";
-  if (latitude === null || longitude === null) return "Location unavailable";
-  return `${Math.abs(latitude).toFixed(2)}°${latitude >= 0 ? "N" : "S"}, ${Math.abs(longitude).toFixed(2)}°${longitude >= 0 ? "E" : "W"}`;
+  const { latitude, longitude, coordinate_precision } = response.params.location;
+  return formatCoordinates(latitude, longitude, coordinate_precision ?? 2);
 }
 
 function trace(value: import("./chatApi").ApiTrace | undefined): DataPoint["trace"] {
@@ -145,6 +145,12 @@ function status(response: ChatApiResponse): StatusDetails | undefined {
     scoreValue: `${anomaly.z_score >= 0 ? "+" : ""}${anomaly.z_score.toFixed(2)}`,
     interpretation: anomaly.explanation,
     tone: positive ? "sand" : "aqua",
+    currentNumeric: anomaly.current_value,
+    baselineNumeric: anomaly.baseline_mean,
+    baselineStd: anomaly.baseline_std,
+    baselineN: anomaly.baseline_n,
+    zScore: anomaly.z_score,
+    baselinePeriod: anomaly.baseline_period,
   };
 }
 
@@ -163,17 +169,40 @@ function chartSummary(response: ChatApiResponse): string {
   return `${count} QC-passed profiles contribute to this view; the representative value is ${current.toFixed(2)} ${response.data.unit}.`;
 }
 
+function distanceLabel(value: number): string {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+}
+
+function retrievalDetails(response: ChatApiResponse): DataSufficiencyDetails {
+  return {
+    requestedRadiusKm: response.data_sufficiency.requested_radius_km,
+    actualRadiusKm: response.data_sufficiency.actual_radius_km,
+    radiusExpanded: response.data_sufficiency.radius_expanded,
+    nearestObservationKm: response.data_sufficiency.nearest_observation_km,
+  };
+}
+
 export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
   const location = response.params.location;
+  const sufficiency = retrievalDetails(response);
+  const actualRadius = sufficiency.actualRadiusKm ?? response.data_sufficiency.coverage_radius_km ?? location.radius_km;
+  const searchArea = location.region_id
+    ? `Named region bounds centred at ${coordinates(response)}`
+    : sufficiency.radiusExpanded && sufficiency.requestedRadiusKm !== null
+      ? `${distanceLabel(actualRadius)} (auto-expanded from ${distanceLabel(sufficiency.requestedRadiusKm)})`
+      : `${distanceLabel(actualRadius)} search radius`;
+  const nearestObservation = !location.region_id && sufficiency.nearestObservationKm !== null
+    ? `${distanceLabel(sufficiency.nearestObservationKm)} from ${location.label}`
+    : undefined;
   const marker = {
-    latitude: location.latitude ?? 0,
-    longitude: location.longitude ?? 70,
+    latitude: location.latitude,
+    longitude: location.longitude,
   };
   const reasons = response.evidence_grade_reasons.map((reason) => reason.replaceAll("_", " "));
   return {
     id: responseKind(response),
     query: response.summary,
-    interpretedQuery: response.summary,
+    interpretedQuery: response.interpreted_title || response.summary,
     metadata: {
       location: location.label,
       coordinates: coordinates(response),
@@ -182,6 +211,8 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
         ? response.params.parameters.map((value) => PARAMETER_LABELS[value] || value).join(" and ")
         : PARAMETER_LABELS[response.params.parameter] || response.params.parameter,
       resultType: RESULT_LABELS[response.query_type] || response.query_type,
+      searchArea,
+      nearestObservation,
     },
     insight: response.summary,
     parameterDefinition: response.params.parameter === "salinity"
@@ -203,7 +234,15 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       label: location.label,
       coordinates: coordinates(response),
       marker,
-      radiusKm: location.radius_km,
+      radiusKm: location.region_id ? undefined : actualRadius,
+      nearestObservationKm: sufficiency.nearestObservationKm ?? undefined,
+      coordinatePrecision: location.coordinate_precision ?? 2,
+      floatPositions: response.evidence_panel.float_positions.map((position) => ({
+        floatId: position.float_id,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        profileCount: position.profile_count,
+      })),
       region: regionContext(location.region_id, location.bounds ?? null),
     },
     status: status(response),
@@ -211,7 +250,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       calculated: response.evidence_panel.current_period_summary,
       grouped: response.evidence_panel.aggregation_method || response.data.aggregation_method,
       baseline: response.evidence_panel.baseline_summary || "No production-baseline score was emitted for this answer.",
-      score: response.evidence_panel.score_summary || "No Z-score was requested for this answer.",
+      score: response.evidence_panel.score_summary || "No Z-score was emitted because the evidence or production baseline was insufficient.",
       caveat: response.evidence_panel.proxy_caveat || response.data.proxy_note,
     },
     evidenceGrade: response.evidence_grade,
@@ -227,6 +266,13 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
       qcPassRate: response.evidence_panel.qc_pass_rate,
       qcRule: response.evidence_panel.qc_rule,
       exclusionReasons: response.evidence_panel.exclusion_reasons,
+      depthBinsUsed: response.evidence_panel.depth_bins_used,
+      aggregationCountsPerBin: response.evidence_panel.aggregation_counts_per_bin,
+      baselineGridCell: response.evidence_panel.baseline_grid_cell || undefined,
+      baselineSelectionId: response.evidence_panel.baseline_selection_id || undefined,
+      baselineMonthUsed: response.evidence_panel.baseline_month_used || undefined,
+      baselineDistinctFloatCount: response.evidence_panel.baseline_distinct_float_count ?? undefined,
+      evidenceChecks: response.evidence_panel.evidence_checks,
       sourceVersion: response.evidence_panel.source_version || undefined,
       selectionSummary: response.evidence_panel.selection_summary || undefined,
       artifactPath: response.evidence_panel.artifact_path || undefined,
@@ -242,6 +288,7 @@ export function adaptApiResponse(response: ChatApiResponse): OceanResponse {
     parameterSeries: parameterSeries(response),
     secondaryViews: response.secondary_views,
     supplementaryData: response.supplementary_data,
+    dataSufficiency: sufficiency,
     parameterKey: response.data.parameter,
     unit: response.data.unit,
   };

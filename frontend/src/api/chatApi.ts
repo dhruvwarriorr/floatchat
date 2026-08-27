@@ -7,11 +7,13 @@ export interface ApiBounds {
 
 export interface ApiLocation {
   label: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number;
+  longitude: number;
   region_id: string | null;
   radius_km: number;
+  radius_explicit?: boolean;
   bounds?: ApiBounds | null;
+  coordinate_precision?: number;
 }
 
 export interface ApiQueryParams {
@@ -22,6 +24,8 @@ export interface ApiQueryParams {
   year_start: number | null;
   year_end: number | null;
   month: number | null;
+  calendar_month: number | null;
+  season: "monsoon" | "post-monsoon" | "pre-monsoon" | "summer" | "winter" | null;
   anomaly_requested: boolean;
   date_from: string | null;
   date_to: string | null;
@@ -105,12 +109,32 @@ export interface ApiEvidencePanel {
   source_version: string | null;
   selection_summary: string | null;
   aggregation_method: string | null;
+  depth_bins_used: string[];
+  aggregation_counts_per_bin: Record<string, number>;
+  baseline_grid_cell: ApiBounds | null;
+  baseline_selection_id: string | null;
+  baseline_month_used: number | null;
+  baseline_distinct_float_count: number | null;
+  evidence_checks: Array<{
+    key: string;
+    label: string;
+    value: number | string | null;
+    threshold: number | string | null;
+    passed: boolean | null;
+    detail: string;
+  }>;
   proxy_caveat: string | null;
   artifact_path: string | null;
   artifact_sha256: string | null;
   contributing_profile_ids: string[];
   contributing_float_ids: string[];
   source_record_sample: string[];
+  float_positions: Array<{
+    float_id: string;
+    latitude: number;
+    longitude: number;
+    profile_count: number;
+  }>;
   trace_sample_truncated: boolean;
 }
 
@@ -119,34 +143,41 @@ export interface ApiSupplementary {
     points: Array<{ temperature: number; salinity: number; pressure: number | null; profile_id: string }>;
     profile_count: number;
     float_count: number;
+    aggregation_method: string;
   };
   density_profile?: {
     bins: Array<{ depth_bin: string; depth_mid: number; density: number; unit: string }>;
+    aggregation_method: string;
   };
   heat_content?: {
     value_mj_per_m2: number;
     profile_count: number;
     depth_range: string;
+    aggregation_method: string;
   };
   hovmoller?: {
     grid: Array<{ month: string; depth_bin: string; depth_mid: number | null; value: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   seasonal_cycle?: {
     months: Array<{ month: number; month_label: string; mean: number; std: number; count: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   year_over_year?: {
     years: Record<string, Array<{ month: number; month_label: string; value: number }>>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
   anomaly_trend?: {
     series: Array<{ month: string; z_score: number; label: string; current_value: number; baseline_mean: number }>;
     parameter: string;
     unit: string;
+    aggregation_method: string;
   };
 }
 
@@ -164,12 +195,17 @@ export interface ApiParameterResult {
     profile_count: number;
     coverage: string;
     coverage_radius_km: number | null;
+    requested_radius_km: number | null;
+    actual_radius_km: number | null;
+    radius_expanded: boolean;
+    nearest_observation_km: number | null;
   };
   secondary_views?: Record<string, ApiAggregateData>;
   supplementary_data?: ApiSupplementary;
 }
 
 export interface ChatApiResponse {
+  interpreted_title?: string;
   summary: string;
   query_type: "profile" | "time_series" | "regional_average";
   params: ApiQueryParams;
@@ -184,6 +220,10 @@ export interface ChatApiResponse {
     profile_count: number;
     coverage: string;
     coverage_radius_km: number | null;
+    requested_radius_km: number | null;
+    actual_radius_km: number | null;
+    radius_expanded: boolean;
+    nearest_observation_km: number | null;
   };
   parser_used: "llm" | "rule_based";
   source: string;
@@ -197,10 +237,31 @@ export interface ChatApiError {
     type: string;
     message: string;
     suggestion: string | null;
+    understanding?: string | null;
+    understood?: {
+      location_label: string;
+      latitude: number | null;
+      longitude: number | null;
+      region_id: string | null;
+      radius_km: number;
+      date_from: string;
+      date_to: string;
+      calendar_month: number | null;
+      season: string | null;
+      parameters: string[];
+      query_type: string;
+    } | null;
+    searched?: string | null;
+    records_found?: number | null;
+    nearest_available_km?: number | null;
+    suggested_query?: string | null;
   };
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+// In production the FastAPI service also serves the built frontend, so the
+// safest default is the current origin. Vite proxies /chat during local
+// development; VITE_API_URL remains an explicit override for split deployments.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 export function isErrorResponse(value: unknown): value is ChatApiError {
   if (!value || typeof value !== "object" || !("error" in value)) return false;
@@ -223,31 +284,45 @@ export async function sendChatQuery(
   query: string,
   signal?: AbortSignal,
 ): Promise<ChatApiResponse | ChatApiError> {
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE}/chat`, {
+    response = await fetch(`${API_BASE}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
       signal,
     });
-    const payload: unknown = await response.json();
-    if (isErrorResponse(payload)) return payload;
-    if (response.ok && isSuccessResponse(payload)) return payload;
-    return {
-      error: {
-        type: "general_error",
-        message: "The server returned an unexpected response.",
-        suggestion: "Try again or check that the API and data artifacts are ready.",
-      },
-    };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     return {
       error: {
         type: "general_error",
         message: "The FloatChat-Lite API could not be reached.",
-        suggestion: "Start the API on port 8000 and try again.",
+        suggestion: "Check that the API is running and try again.",
       },
     };
   }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return {
+      error: {
+        type: "general_error",
+        message: "The server returned a response that FloatChat-Lite could not read.",
+        suggestion: "Try again or check that the API and data artifacts are ready.",
+      },
+    };
+  }
+
+  if (isErrorResponse(payload)) return payload;
+  if (response.ok && isSuccessResponse(payload)) return payload;
+  return {
+    error: {
+      type: "general_error",
+      message: "The server returned an unexpected response.",
+      suggestion: "Try again or check that the API and data artifacts are ready.",
+    },
+  };
 }

@@ -63,6 +63,14 @@ def test_all_reviewed_conditions_pass_is_supported() -> None:
 
     assert result.grade is EvidenceGrade.SUPPORTED
     assert result.reasons == ["all_grade_conditions_met"]
+    assert {check.key for check in result.checks} == {
+        "valid_profile_count",
+        "baseline_observation_count",
+        "distinct_float_count",
+        "qc_pass_rate",
+        "baseline_variability",
+    }
+    assert all(check.passed is True for check in result.checks)
 
 
 def test_unreviewed_thresholds_fail_closed() -> None:

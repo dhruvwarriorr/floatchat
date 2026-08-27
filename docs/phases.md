@@ -1,6 +1,6 @@
 # FloatChat-Lite delivery phases
 
-> Rev. B synchronization: 22 August 2026
+> Rev. C synchronization: 24 August 2026
 
 | Phase | Goal | Status | Exit gate |
 | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ Freeze real fixtures, migrate contracts, resolve frontend-library divergence, pr
 ## Phase 4: quantitative evaluation
 
 Run the same frozen labels/subset through the three anomaly methods. The
-24-query reliability suite and five API scenarios now cover the disabled,
+59-query reliability suite and five API scenarios now cover the disabled,
 simulated-failure, sparse/no-data, malformed-date, and latency paths. Reviewed
 anomaly labels and provider-enabled evidence are still required before metrics
 can be logged or quoted.

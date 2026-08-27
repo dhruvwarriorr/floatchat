@@ -1,6 +1,6 @@
 # FloatChat-Lite executable todo
 
-> Rev. B synchronization: 22 August 2026
+> Rev. C synchronization: 24 August 2026
 
 ## Completed structure/foundation
 
@@ -38,11 +38,11 @@
 - [x] Add an exact query marker/radius or named-region overlay on an interactive map.
 - [x] Trace displayed chart points to profile, float, and source-row samples.
 - [x] Render typed errors, QC warning, evidence-grade badge policy, parser disclosure, and expandable panel.
-- [x] Create the frozen 24-prompt parser fixture and anomaly-case schema.
+- [x] Create and expand the frozen parser fixture to 59 queries plus the anomaly-case schema.
 - [ ] Add reviewed anomaly labels/references under `evaluation/fixtures/`.
 - [x] Build a reproducible three-method comparison script that fails closed without reviewed labels.
 - [ ] Report confusion counts, precision, recall, F1, false-alert rate, coverage, and response time.
-- [x] Build a 24-query parser reliability evaluation.
+- [x] Build a 59-query parser reliability evaluation.
 - [x] Generate disabled/fallback/no-data/sparse-data/malformed-date/simulated-failure and average/p95 latency results.
 - [ ] Run and review provider-enabled and malformed-provider-output behavior with an authorized provider configuration.
 - [ ] Review reports and add exact evidence rows.

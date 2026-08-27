@@ -26,7 +26,7 @@ For every anomaly result verify:
 ## Quantitative claim inspection
 
 - Confirm labels, subset, denominators, method versions, confusion counts, precision/recall/F1/false-alert/coverage/response-time report.
-- Confirm reliability test includes 20–30 paraphrases, model explicitly disabled, invalid output/fallback, average/p95 latency, no/sparse data, malformed date, and simulated failure.
+- Confirm the expanded 59-query reliability suite runs with the provider explicitly disabled and reports invalid output/fallback, average/p95 latency, no/sparse data, malformed date, and simulated failure.
 - Match every displayed number to an evidence-log row and report artifact.
 
 ## Recovery

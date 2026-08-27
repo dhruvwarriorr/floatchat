@@ -1,6 +1,6 @@
 # Quantitative evaluation workspace
 
-This directory contains the frozen 24-prompt parser fixture, the schema-only anomaly case fixture, and ignored generated reports. No accuracy, precision, reliability, or latency claim is approved merely because a report was generated.
+This directory contains the frozen 59-query parser fixture, the schema-only anomaly case fixture, and ignored generated reports. No accuracy, precision, reliability, or latency claim is approved merely because a report was generated.
 
 ```text
 evaluation/
@@ -12,7 +12,7 @@ evaluation/
 ## Required evaluations
 
 1. **Anomaly-method comparison:** on one fixed reviewed ARGO subset, compare a regional-average baseline, an unfiltered Z-score, and the full QC-filtered/evidence-graded pipeline. Report confusion counts, precision, recall, F1, false-alert rate, query coverage, and response time with the labeling method and denominator.
-2. **Parser/API reliability:** use 20–30 frozen paraphrases and repeated requests to report parsing success, invalid-output rate, deterministic behaviour with the LLM explicitly disabled, average/p95 latency, and no-data, sparse-data, malformed-date, and simulated-provider-failure outcomes.
+2. **Parser/API reliability:** use the frozen 59-query suite and repeated requests to report parsing success, invalid-output rate, deterministic behaviour with the provider explicitly disabled, average/p95 latency, and no-data, sparse-data, malformed-date, and simulated-provider-failure outcomes.
 
 Commands:
 

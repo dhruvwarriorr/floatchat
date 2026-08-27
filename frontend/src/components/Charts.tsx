@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import type { OceanResponse, ParameterSeries } from "../types/ocean";
+import { ChartExplanation } from "./Transparency";
 
 const axis = {
   stroke: "rgba(159, 184, 202, 0.52)",
@@ -136,6 +137,11 @@ export function DepthProfileChart({ response }: { response: OceanResponse }) {
         <div><p className="section-kicker">Vertical structure</p><h3>Parameter by pressure</h3></div>
         <ParameterToggle series={series} selection={selection} onChange={setSelection} />
       </div>
+      <ChartExplanation
+        kind="profile"
+        method={response.preparation.grouped}
+        inputs={`${response.profileCount} QC-passed profiles; pressure bins ${response.evidencePanel.depthBinsUsed.join(", ") || "not represented"} dbar.`}
+      />
       <div className="chart-canvas depth-chart">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} layout="vertical" margin={{ top: 34, right: 28, left: 18, bottom: 32 }}>
@@ -192,6 +198,11 @@ export function TimeSeriesChart({ response }: { response: OceanResponse }) {
         <div><p className="section-kicker">Time series</p><h3>Monthly profile aggregates</h3></div>
         <ParameterToggle series={series} selection={selection} onChange={setSelection} />
       </div>
+      <ChartExplanation
+        kind="time_series"
+        method={response.preparation.grouped}
+        inputs={`${response.profileCount} QC-passed profiles from ${response.metadata.period}.`}
+      />
       <div className="chart-canvas">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 14, right: 22, left: 4, bottom: 27 }}>
@@ -242,6 +253,11 @@ export function RegionalAverageView({ response }: { response: OceanResponse }) {
         </div>
         <ParameterToggle series={series} selection={selection} onChange={setSelection} />
       </div>
+      <ChartExplanation
+        kind="regional_average"
+        method={response.preparation.grouped}
+        inputs={`${response.profileCount} QC-passed profiles inside ${response.metadata.location}.`}
+      />
       <div className="chart-canvas compact-chart">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 22, left: 4, bottom: 27 }}>

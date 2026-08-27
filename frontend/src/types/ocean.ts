@@ -36,6 +36,15 @@ export interface QueryMetadata {
   period: string;
   parameter: string;
   resultType: string;
+  searchArea: string;
+  nearestObservation?: string;
+}
+
+export interface DataSufficiencyDetails {
+  requestedRadiusKm: number | null;
+  actualRadiusKm: number | null;
+  radiusExpanded: boolean;
+  nearestObservationKm: number | null;
 }
 
 export interface MapContext {
@@ -43,6 +52,14 @@ export interface MapContext {
   coordinates: string;
   marker: { longitude: number; latitude: number };
   radiusKm?: number;
+  nearestObservationKm?: number;
+  coordinatePrecision?: number;
+  floatPositions?: Array<{
+    floatId: string;
+    latitude: number;
+    longitude: number;
+    profileCount: number;
+  }>;
   region?: {
     west: number;
     east: number;
@@ -62,6 +79,12 @@ export interface StatusDetails {
   scoreValue: string;
   interpretation: string;
   tone: "sand" | "aqua" | "neutral";
+  currentNumeric: number;
+  baselineNumeric: number;
+  baselineStd: number;
+  baselineN: number;
+  zScore: number;
+  baselinePeriod: string;
 }
 
 export interface PreparationDetails {
@@ -83,6 +106,20 @@ export interface EvidenceDetails {
   qcPassRate: number;
   qcRule: string;
   exclusionReasons: Record<string, number>;
+  depthBinsUsed: string[];
+  aggregationCountsPerBin: Record<string, number>;
+  baselineGridCell?: { south: number; west: number; north: number; east: number };
+  baselineSelectionId?: string;
+  baselineMonthUsed?: number;
+  baselineDistinctFloatCount?: number;
+  evidenceChecks: Array<{
+    key: string;
+    label: string;
+    value: number | string | null;
+    threshold: number | string | null;
+    passed: boolean | null;
+    detail: string;
+  }>;
   sourceVersion?: string;
   selectionSummary?: string;
   artifactPath?: string;
@@ -122,6 +159,7 @@ export interface OceanResponse {
   parameterSeries?: Record<string, ParameterSeries>;
   secondaryViews?: Record<string, ApiAggregateData>;
   supplementaryData?: ApiSupplementary;
+  dataSufficiency: DataSufficiencyDetails;
   parameterKey?: string;
   unit?: string;
 }
